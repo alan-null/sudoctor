@@ -11,22 +11,7 @@ docker pull ghcr.io/alan-null/sudoctor-dashboard:latest
 
 Default-branch builds receive `latest`; version tags receive full and minor version tags (for example, `1.2.3` and `1.2`). Published builds also receive a `sha-<short-commit>` tag. Use a version tag or image digest to pin deployments. Publishing uses the built-in `GITHUB_TOKEN` and requires no additional registry secrets. To allow anonymous pulls, set each GHCR package's visibility to public after its first publication; private packages require `docker login ghcr.io` with a token that has `read:packages` access.
 
-The Compose configuration below builds locally. To consume published images with the same configuration, create a `compose.published.yaml` alongside `compose.yaml`:
-
-```yaml
-services:
-  scheduler:
-    image: ghcr.io/alan-null/sudoctor-scheduler:latest
-  dashboard:
-    image: ghcr.io/alan-null/sudoctor-dashboard:latest
-```
-
-After configuring the inventory and SSH mounts as described below, run these commands from this directory:
-
-```bash
-docker compose -f compose.yaml -f compose.published.yaml pull
-docker compose -f compose.yaml -f compose.published.yaml up -d --no-build
-```
+The [Compose file](compose.yaml) uses these published images. After configuring the inventory and SSH mounts as described below, run `docker compose pull` and `docker compose up -d` from this directory.
 
 ## Local deployment
 
@@ -39,7 +24,8 @@ Docker Compose runs checks on a schedule and serves the dashboard from a separat
 ```bash
 cd docker
 cp .env.example .env
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 Open `http://127.0.0.1:8000` on the controller. The dashboard binds to loopback by default and does not require Caddy. To access it from another machine, set `SUDOCTOR_BIND_ADDRESS` to a reachable address and restrict access with your network controls. The dashboard has no built-in authentication and reports can contain private hostnames and URLs.
@@ -59,7 +45,7 @@ Edit the local `.env` file using [the example](.env.example), or set these varia
 
 For a weekly schedule, set `SUDOCTOR_STALE_SECONDS=691200` (eight days) or another value that accounts for your sweep duration. Cron runs with the container's time zone. The scheduler also starts one sweep when it starts. Missed runs are not replayed after downtime. If a sweep is still running when another starts, the new sweep exits without overlapping it. The state volume retains reports across container restarts. Only one scheduler should use a state volume, and its filesystem must support local file locks.
 
-Run the following Compose commands from this directory. Run an extra sweep with `docker compose exec scheduler /app/scripts/sudoctor-scheduled.py sweep`. Stop scheduled checks with `docker compose stop scheduler`; the dashboard remains available. Restart them with `docker compose start scheduler`. The dashboard shows a failed or stale attempt separately from the last report. Its `/health` endpoint reports whether the dashboard process responds, not whether scheduled checks are healthy.
+Run the following Compose commands from this directory. Run an extra sweep with `docker compose exec scheduler /app/scripts/sudoctor-scheduled.py sweep`. Stop scheduled checks with `docker compose stop scheduler`; the dashboard remains available. Restart them with `docker compose start scheduler`. The dashboard loads archived scheduled reports from the state volume for snapshot selection and history charts, and shows a failed or stale attempt separately from the last report. Its `/health` endpoint reports whether the dashboard process responds, not whether scheduled checks are healthy.
 
 If you already use Caddy on the same host, leave the dashboard bound to loopback and add a site to your existing Caddy configuration:
 

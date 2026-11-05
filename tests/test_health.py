@@ -5,6 +5,7 @@ from pathlib import Path
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+import urllib.error
 
 spec = importlib.util.spec_from_file_location('health', Path(__file__).resolve().parents[1] / 'scripts/sudoctor-health.py')
 health = importlib.util.module_from_spec(spec)
@@ -12,6 +13,12 @@ spec.loader.exec_module(health)
 
 
 class OSHealthTests(unittest.TestCase):
+    def test_http_error_status_matches_expectation(self):
+        error = urllib.error.HTTPError('http://example.test', 401, 'Unauthorized', {}, None)
+        with patch.object(health.urllib.request, 'urlopen', side_effect=error):
+            self.assertEqual(health.check_http('http://example.test', 401), (True, 401))
+            self.assertEqual(health.check_http('http://example.test', 200), (False, 401))
+
     def collect(self, commands, files=None):
         with patch.object(health, 'command', side_effect=lambda args, **kwargs: commands.get(args[0])), patch.object(health, 'read_text', side_effect=lambda path: (files or {}).get(path)), patch.object(health.pathlib.Path, 'glob', return_value=[]), patch.object(health.pathlib.Path, 'stat', side_effect=OSError), patch.object(health.pathlib.Path, 'exists', return_value=False):
             checks, pending, reboot = health.os_update_checks(datetime.datetime(2026, 11, 4, tzinfo=datetime.timezone.utc))

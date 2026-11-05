@@ -2,11 +2,7 @@ name: sudoctor
 
 services:
   scheduler:
-    image: sudoctor-scheduler:local
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-      target: scheduler
+    image: ghcr.io/alan-null/sudoctor-scheduler:latest
     command: scheduler
     restart: unless-stopped
     environment:
@@ -20,11 +16,7 @@ services:
       - ${SUDOCTOR_INVENTORY_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/sudoctor/inventory}:/app/inventory:ro
       - ${SUDOCTOR_SSH_DIR:-~/.ssh}:/root/.ssh:ro
   dashboard:
-    image: sudoctor-dashboard:local
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-      target: dashboard
+    image: ghcr.io/alan-null/sudoctor-dashboard:latest
     restart: unless-stopped
     read_only: true
     cap_drop:

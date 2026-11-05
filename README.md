@@ -30,15 +30,15 @@ Create `hosts.ini` in that directory with your own SSH aliases:
 
 ```ini
 [servers]
-web01
+cloud-dev
 ```
 
 Add per-host settings in the adjacent `host_vars/<hostname>.yml`. Host variable filenames match the **Ansible inventory alias**. Keep hosts under `servers`, directly or through child groups. The checkout's inventory contains examples and is never selected automatically.
 
 ```bash
-./scripts/sudoctor setup web01
-./scripts/sudoctor check web01
-./scripts/sudoctor check web01 --inventory ~/private-infrastructure/inventory/hosts.ini
+./scripts/sudoctor setup cloud-dev
+./scripts/sudoctor check cloud-dev
+./scripts/sudoctor check cloud-dev --inventory ~/private-infrastructure/inventory/hosts.ini
 ```
 
 Inventory precedence is `--inventory PATH` → `SUDOCTOR_INVENTORY` → the default home inventory. An inventory directory is also accepted by the CLI. Relative override paths are resolved from your current directory. Missing inventory produces an error with setup guidance. Host/group selection works independently of inventory selection. The launcher always uses sudoctor's bundled Ansible configuration.
@@ -97,7 +97,7 @@ Docker container definitions are **monitored**, not automatically rebuilt or upd
 
 ### Configure tmux sessions, windows, and panes
 
-Each entry under `sudoctor_tmux` defines a **session** owned by an existing Linux `user`. A session contains named **windows** (tabs); each window contains one or more **panes** (terminal areas), each running its own `command`. Start with the commented example in [sudoctor1 host variables](inventory/host_vars/sudoctor1.yml):
+Each entry under `sudoctor_tmux` defines a **session** owned by an existing Linux `user`. A session contains named **windows** (tabs); each window contains one or more **panes** (terminal areas), each running its own `command`. Start with the commented example in [cloud-dev host variables](inventory/host_vars/cloud-dev.yml):
 
 ```yaml
 sudoctor_tmux:
@@ -129,10 +129,10 @@ This creates session `apps`, window `worker` with side-by-side `app` and `logs` 
 Apply the configuration and inspect the result:
 
 ```bash
-./scripts/sudoctor setup sudoctor1
-ssh -t sudoctor1 'tmux attach -t apps'
-./scripts/sudoctor check sudoctor1
-./scripts/sudoctor recover sudoctor1
+./scripts/sudoctor setup cloud-dev
+ssh -t cloud-dev 'tmux attach -t apps'
+./scripts/sudoctor check cloud-dev
+./scripts/sudoctor recover cloud-dev
 ```
 
 Attach as the configured `user` (the example assumes SSH logs in as `alan`). In tmux, press `Ctrl-b` then `w` to choose a window, `Ctrl-b` then an arrow key to move between panes, and `Ctrl-b` then `d` to detach while programs continue running. Pane borders show the configured name and current program; health reports include pane names, IDs, current programs, and dead state. The program field is tmux's current foreground command, not an application health check or the full configured command line. Use TCP/HTTP probes to verify actual application health.

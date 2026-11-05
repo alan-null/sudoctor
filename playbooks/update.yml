@@ -53,12 +53,10 @@
       changed_when: false
       register: health_raw
     - name: Store health results
-      ansible.builtin.copy:
-        content: "{{ health_raw.stdout | from_json | to_nice_json }}\n"
-        dest: "{{ lookup('ansible.builtin.env', 'SUDOCTOR_REPORT_DIR') | default(playbook_dir ~ '/../reports', true) }}/{{ inventory_hostname }}.json"
-        mode: '0600'
-      delegate_to: localhost
-      become: false
+      ansible.builtin.set_fact:
+        health: '{{ health_raw.stdout | from_json }}'
+    - name: Store and archive report locally
+      ansible.builtin.include_tasks: store-report.yml
     - name: Fail if post-maintenance health is critical
       ansible.builtin.assert:
         that: (health_raw.stdout | from_json).status != 'critical'

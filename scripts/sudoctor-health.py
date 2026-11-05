@@ -54,6 +54,8 @@ def check_http(url, expected):
         req = urllib.request.Request(url, headers={'User-Agent': 'sudoctor/1.0'})
         with urllib.request.urlopen(req, timeout=5) as resp:
             return resp.status == int(expected), resp.status
+    except urllib.error.HTTPError as e:
+        return e.code == int(expected), e.code
     except (urllib.error.URLError, TimeoutError, ValueError, OSError) as e:
         return False, str(e)
 

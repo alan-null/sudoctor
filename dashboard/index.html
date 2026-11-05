@@ -87,8 +87,8 @@ function renderModules(report) {
     }).join('')}</div></section>`;
   }).join('')}</div>`;
 }
-function renderReport({name, data:r}, history = '', historyHostIndex = '') {
-  const live = liveHosts?.[name]; const status = live ? (live.stale ? 'unknown' : ['ok','warning','critical'].includes(live.attempt?.outcome) ? live.attempt.outcome : 'unknown') : (['ok','warning','critical'].includes(r.status) ? r.status : 'unknown');
+function renderReport({name, alias, data:r}, history = '', historyHostIndex = '', showLive = true) {
+  const live = showLive ? liveHosts?.[alias || name] : null; const status = live ? (live.stale ? 'unknown' : ['ok','warning','critical'].includes(live.attempt?.outcome) ? live.attempt.outcome : 'unknown') : (['ok','warning','critical'].includes(r.status) ? r.status : 'unknown');
   const mem = r.memory_mb || {}; const used = typeof mem.MemTotal === 'number' && typeof mem.MemAvailable === 'number' ? mem.MemTotal - mem.MemAvailable : null;
   const findings = [...(Array.isArray(r.issues) ? r.issues.map(x => ['critical', x]) : []), ...(Array.isArray(r.warnings) ? r.warnings.map(x => ['warning', x]) : [])];
   const checks = Object.entries(r.details || {}).filter(([, entries]) => entries && typeof entries === 'object' && Object.keys(entries).length).map(([type, entries]) => `<div><h4>${text(type)}</h4>${Object.entries(entries).map(([key, value]) => { const [state, label] = checkResult(type, value); return `<div class="check"><span>${text(key)}</span><span class="${state}">${text(label)}</span></div>`; }).join('')}</div>`).join('');
@@ -100,7 +100,7 @@ function timestamp(report) { const time = Date.parse(report.data.timestamp_utc);
 function renderHost(index, selected = 0) {
   const group = groups[index];
   const history = group.reports.length > 1 ? `<div class="history"><label for="history-${index}">Snapshot</label><select id="history-${index}" data-host="${index}" aria-label="Snapshot for ${text(group.label)}">${group.reports.map((report, i) => `<option value="${i}" ${i === selected ? 'selected' : ''}>${text(date(report.data.timestamp_utc))}${i === 0 ? ' · Latest' : ''} · ${text(report.data.status)}</option>`).join('')}</select><span>${group.reports.length} snapshots</span></div>` : '<div class="history">1 snapshot</div>';
-  return renderReport(group.reports[selected], history, index);
+  return renderReport(group.reports[selected], history, index, selected === 0);
 }
 function show(reports, errors, source) {
   $('source').textContent = source;
@@ -176,7 +176,7 @@ async function discover() {
     if (api.ok) {
       const state = await api.json();
       if (Array.isArray(state.reports)) {
-        liveHosts = null;
+        liveHosts = state.hosts || null;
         show(state.reports.map(report => validate(report.data, report.name, report.alias)), state.errors || [], `Loaded from ${state.source}`); return;
       }
       liveHosts = state.hosts;

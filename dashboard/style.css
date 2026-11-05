@@ -4,6 +4,7 @@ html[data-theme=light]{--bg:#f7f6f1;--panel:#fff;--border:#d5dad4;--muted:#5b677
 body{font-family:'JetBrains Mono','SFMono-Regular',Consolas,'Liberation Mono',monospace;font-size:13px;line-height:1.6;display:grid;grid-template-columns:244px minmax(0,1fr);min-height:100vh}
 button,.button{border-radius:10px;font-size:12px;font-weight:700;padding:10px 14px;transition:background-color .15s,color .15s}
 button:focus-visible,a:focus-visible,select:focus-visible,summary:focus-visible{outline:2px solid var(--green);outline-offset:4px}
+.host-toolbar select,.history select{appearance:none;padding-right:36px;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8' viewBox='0 0 12 8'%3E%3Cpath d='m1 1 5 5 5-5' fill='none' stroke='%2391a0a8' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center}
 .sidebar{grid-column:1;grid-row:1 / 4;position:sticky;top:0;height:100vh;background:var(--panel);border-right:1px solid var(--border);padding:30px 20px;display:flex;flex-direction:column;gap:36px}
 .brand{gap:12px}.brand img{width:44px;height:48px;background:none;border:0;border-radius:0;padding:0}
 :root:not([data-theme=light]) :is(.brand img,.intro-mascot){filter:drop-shadow(1px 0 0 #e9eef1) drop-shadow(-1px 0 0 #e9eef1) drop-shadow(0 1px 0 #e9eef1) drop-shadow(0 -1px 0 #e9eef1) drop-shadow(0 0 2px #e9eef180)}

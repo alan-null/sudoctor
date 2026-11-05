@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Serve dashboard assets and current check results."""
+"""Serve dashboard assets and check history."""
 import datetime as dt
 import json
 import os
@@ -42,6 +42,21 @@ def overview():
     if LOCAL:
         return local_overview()
     state = read_state()
+    reports = []
+    archive_root = STATE / 'reports'
+    for name, host in state['hosts'].items():
+        reports.append({'name': name + '.json', 'alias': name,
+                        'data': host.get('report') or {'status': 'unknown', 'hostname': name}})
+        for path in sorted((archive_root / name).glob('*.json')):
+            if not path.resolve().is_relative_to(archive_root.resolve()):
+                continue
+            try:
+                data = json.loads(path.read_text())
+                if isinstance(data, dict) and isinstance(data.get('status'), str):
+                    reports.append({'name': name + '/' + path.name, 'alias': name, 'data': data})
+            except (OSError, ValueError):
+                continue
+    state['reports'] = reports
     current = dt.datetime.now(dt.timezone.utc)
     for host in state['hosts'].values():
         attempt = host.get('attempt', {})

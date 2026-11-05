@@ -100,6 +100,19 @@ class ScheduledTests(unittest.TestCase):
         self.assertEqual(len(state['errors']), 2)
         self.assertEqual(state['source'], str(reports))
 
+    def test_docker_overview_includes_archived_reports(self):
+        archive = scheduled.STATE / 'reports' / 'web01'
+        archive.mkdir(parents=True)
+        older = {'status': 'warning', 'timestamp_utc': '2026-01-01T00:00:00Z'}
+        latest = {'status': 'ok', 'timestamp_utc': '2026-01-02T00:00:00Z'}
+        (archive / 'older.json').write_text(json.dumps(older))
+        (archive / 'latest.json').write_text(json.dumps(latest))
+        scheduled.save_state({'hosts': {'web01': {'report': latest}}, 'error': None})
+        state = dashboard.overview()
+        self.assertEqual(len(state['reports']), 3)
+        self.assertEqual({item['data']['timestamp_utc'] for item in state['reports']}, {older['timestamp_utc'], latest['timestamp_utc']})
+        self.assertEqual({item['alias'] for item in state['reports']}, {'web01'})
+
     def test_local_empty_report_directory(self):
         with patch.object(dashboard, 'LOCAL', True), patch.object(dashboard, 'REPORTS', Path(self.temp.name) / 'missing'):
             self.assertEqual(dashboard.overview()['reports'], [])
