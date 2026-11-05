@@ -1,0 +1,7 @@
+reports/*.json
+reports/*/
+__pycache__/
+*.retry
+
+/docker/.env
+temp/

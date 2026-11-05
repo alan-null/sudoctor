@@ -1,0 +1,19 @@
+[Unit]
+Description=Sudoctor restore tmux session {{ item.name }} ({{ item.user }})
+Wants=network-online.target{{ (' ' ~ item.vpn_unit) if item.vpn_unit is defined else '' }}
+After=network-online.target{{ (' ' ~ item.vpn_unit) if item.vpn_unit is defined else '' }}
+StartLimitIntervalSec=0
+
+[Service]
+Type=oneshot
+# Leave the detached tmux server running after the restorer exits.
+KillMode=process
+User={{ item.user }}
+ExecStart=/usr/local/libexec/sudoctor-tmux.py /etc/sudoctor/tmux/{{ item.name }}.json
+TimeoutStartSec=300
+Restart=on-failure
+RestartSec=30
+# Run on boot; don't claim session is continuously supervised.
+
+[Install]
+WantedBy=multi-user.target

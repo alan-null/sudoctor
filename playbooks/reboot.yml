@@ -1,0 +1,40 @@
+---
+- name: Controlled reboot and verification
+  hosts: servers
+  become: true
+  serial: 1
+  any_errors_fatal: true
+  tasks:
+    - name: Reboot and wait for SSH
+      ansible.builtin.reboot:
+        reboot_timeout: 900
+        post_reboot_delay: 15
+    - name: Ensure expected systemd services are running
+      ansible.builtin.systemd:
+        name: '{{ item }}'
+        state: started
+      loop: '{{ sudoctor_services }}'
+    - name: Restore expected tmux sessions
+      ansible.builtin.systemd:
+        name: 'sudoctor-tmux-{{ item.name }}.service'
+        state: started
+      loop: '{{ sudoctor_tmux }}'
+    - name: Allow some startup time
+      ansible.builtin.pause:
+        seconds: 5
+    - name: Inspect host health
+      ansible.builtin.command:
+        argv: [python3, /usr/local/libexec/sudoctor-health.py, /etc/sudoctor/health.json, --wait, "180"]
+      changed_when: false
+      register: health_raw
+    - name: Save health report locally
+      ansible.builtin.copy:
+        content: "{{ health_raw.stdout | from_json | to_nice_json }}\n"
+        dest: "{{ lookup('ansible.builtin.env', 'SUDOCTOR_REPORT_DIR') | default(playbook_dir ~ '/../reports', true) }}/{{ inventory_hostname }}.json"
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+    - name: Verify no critical issues
+      ansible.builtin.assert:
+        that: (health_raw.stdout | from_json).status != 'critical'
+        fail_msg: 'Reboot completed but applications are unhealthy; see report.'

@@ -1,0 +1,68 @@
+---
+- name: Apply reviewed APT upgrades, reboot if allowed, and verify
+  hosts: servers
+  become: true
+  serial: 1
+  any_errors_fatal: true
+  tasks:
+    - name: Require explicit per-host update opt-in
+      ansible.builtin.assert:
+        that: sudoctor_update_enabled | bool
+        fail_msg: 'Updates disabled for this host; set sudoctor_update_enabled: true in host_vars.'
+    - name: Preflight check disk free space
+      ansible.builtin.shell: "df -Pm / | awk 'NR == 2 {print $4}'"
+      changed_when: false
+      register: free_mb
+    - name: Stop if root disk space is critically low
+      ansible.builtin.assert:
+        that: (free_mb.stdout | int) >= (sudoctor_min_free_mb | int)
+        fail_msg: 'Not enough free space on / for safe updates.'
+    - name: Update APT indexes and apply conservative upgrades
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: safe
+        lock_timeout: 180
+      register: apt_result
+    - name: Check reboot-required marker
+      ansible.builtin.stat:
+        path: /var/run/reboot-required
+      register: reboot_marker
+    - name: Reboot only if required and enabled for this host
+      ansible.builtin.reboot:
+        reboot_timeout: 900
+        post_reboot_delay: 15
+        msg: 'Scheduled sudoctor maintenance'
+      when: reboot_marker.stat.exists and (sudoctor_auto_reboot | bool)
+      register: reboot_result
+    - name: Ensure allowlisted services are running
+      ansible.builtin.systemd:
+        name: '{{ item }}'
+        state: started
+      loop: '{{ sudoctor_services }}'
+    - name: Restore tmux sessions idempotently (including after reboot)
+      ansible.builtin.systemd:
+        name: 'sudoctor-tmux-{{ item.name }}.service'
+        state: started
+      loop: '{{ sudoctor_tmux }}'
+    - name: Wait briefly for applications to settle
+      ansible.builtin.pause:
+        seconds: 5
+    - name: Verify complete health after updates
+      ansible.builtin.command:
+        argv: [python3, /usr/local/libexec/sudoctor-health.py, /etc/sudoctor/health.json, --wait, "180"]
+      changed_when: false
+      register: health_raw
+    - name: Store health results
+      ansible.builtin.copy:
+        content: "{{ health_raw.stdout | from_json | to_nice_json }}\n"
+        dest: "{{ lookup('ansible.builtin.env', 'SUDOCTOR_REPORT_DIR') | default(playbook_dir ~ '/../reports', true) }}/{{ inventory_hostname }}.json"
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+    - name: Fail if post-maintenance health is critical
+      ansible.builtin.assert:
+        that: (health_raw.stdout | from_json).status != 'critical'
+        fail_msg: 'Post-maintenance health is critical; see the configured report directory'
+    - name: Report changes and reboot status
+      ansible.builtin.debug:
+        msg: 'APT changed={{ apt_result.changed }}; reboot required={{ reboot_marker.stat.exists }}; auto reboot enabled={{ sudoctor_auto_reboot }}'

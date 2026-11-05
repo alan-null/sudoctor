@@ -1,0 +1,239 @@
+<!doctype html>
+<html lang="en" data-demo-default="false">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>sudoctor · Health reports</title>
+<script>
+try { if (localStorage.getItem('sudoctor-theme') === 'light') document.documentElement.dataset.theme = 'light'; } catch {}
+</script>
+<style>
+:root{color-scheme:dark;--bg:#0c1116;--panel:#141c23;--border:#29343d;--muted:#91a0a8;--text:#edf4f1;--green:#75d6ac;--yellow:#f1c46b;--red:#f18b83;--control:#1a252d;--control-border:#40505a;--control-hover:#26343c;--finding:#ffffff08;--detail:#cbd7d2;--check-border:#26323a}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,sans-serif}header,main{max-width:1200px;margin:auto;padding:0 28px}header{flex-wrap:wrap;padding-top:32px;padding-bottom:28px;display:flex;justify-content:space-between;align-items:center;gap:20px}.brand{display:flex;flex-shrink:0;align-items:center;gap:12px}.brand img{display:block;width:60px;height:60px;object-fit:contain;background:var(--logo-bg,var(--green));border:1px solid var(--logo-border,var(--green));border-radius:50%;padding:5px}.brand-name{font-size:28px;font-weight:750;letter-spacing:-.05em;line-height:1}.brand-name span{color:var(--green)}.eyebrow{font-size:11px;letter-spacing:.14em;text-transform:uppercase;font-weight:700;color:var(--muted)}button,.button{font:inherit;border:1px solid var(--control-border);background:var(--control);color:var(--text);border-radius:8px;padding:9px 14px;cursor:pointer}.button:hover,button:hover{background:var(--control-hover)}input[type=file]{position:absolute;width:1px;height:1px;opacity:0}input[type=file]:focus-visible+.button{outline:2px solid var(--green)}.actions{display:flex;gap:8px;align-items:center}main{padding-bottom:60px}.intro{border-top:1px solid var(--border);padding:36px 0 24px;display:flex;justify-content:space-between;align-items:end;gap:20px}h1{font-size:clamp(30px,4vw,44px);line-height:1.1;letter-spacing:-.045em;margin:8px 0}p{margin:0;color:var(--muted)}.summary{display:grid;grid-template-columns:repeat(5,1fr);gap:12px;margin-bottom:28px}.stat,.host,.empty{background:var(--panel);border:1px solid var(--border);border-radius:12px}.stat{padding:18px 20px}.stat strong{display:block;font-size:29px;line-height:1.2;margin-top:8px}.stat .ok{color:var(--green)}.stat .warning{color:var(--yellow)}.stat .critical{color:var(--red)}.section-title{display:flex;align-items:baseline;justify-content:space-between;margin:28px 0 12px}.section-title h2{font-size:17px;margin:0}.host{margin-bottom:14px;overflow:hidden}.host-head{padding:20px 22px;display:flex;justify-content:space-between;gap:16px;align-items:center}.host-head h3{font-size:20px;letter-spacing:-.02em;margin:0 0 3px;overflow-wrap:anywhere}.meta{font-size:13px;color:var(--muted)}.badge{display:inline-flex;align-items:center;gap:7px;border:1px solid currentColor;border-radius:99px;padding:4px 10px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;white-space:nowrap}.badge:before{content:'';width:7px;height:7px;border-radius:50%;background:currentColor}.ok{color:var(--green)}.warning{color:var(--yellow)}.critical{color:var(--red)}.unknown{color:var(--muted)}.metrics{display:grid;grid-template-columns:repeat(5,1fr);border-top:1px solid var(--border);border-bottom:1px solid var(--border)}.metric{padding:15px 22px;min-width:0}.metric+.metric{border-left:1px solid var(--border)}.metric strong{display:block;font-size:17px;margin-top:4px;overflow-wrap:anywhere}.metric small{color:var(--muted);font-size:12px}.history{display:flex;align-items:center;gap:10px;padding:12px 22px;border-top:1px solid var(--border);color:var(--muted);font-size:13px}.history select{max-width:100%;background:var(--control);color:var(--text);border:1px solid var(--control-border);border-radius:6px;padding:7px;font:inherit}.content{padding:18px 22px}.findings{display:grid;gap:8px}.finding{border-left:3px solid currentColor;background:var(--finding);padding:9px 12px;border-radius:2px;font-size:13px;overflow-wrap:anywhere}.all-clear{font-size:13px;color:var(--green)}details{border-top:1px solid var(--border);margin-top:16px;padding-top:14px}summary{cursor:pointer;font-weight:650;color:var(--detail);font-size:13px}.checks{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;margin-top:14px}.checks h4{color:var(--muted);text-transform:uppercase;letter-spacing:.08em;font-size:11px;margin:0 0 7px}.check{display:flex;justify-content:space-between;gap:12px;border-top:1px solid var(--check-border);padding:7px 0;font-size:13px;overflow-wrap:anywhere}.check span:last-child{text-align:right}.empty{padding:36px;text-align:center}.empty h2{margin:0 0 8px;font-size:18px}.notice{margin:0 0 16px;color:var(--yellow);font-size:13px;white-space:pre-line}.hidden{display:none}@media(max-width:750px){header,main{padding-left:18px;padding-right:18px}.summary{grid-template-columns:repeat(2,1fr)}.metrics{grid-template-columns:repeat(2,1fr)}.metric+.metric{border-left:0}.metric{border-bottom:1px solid var(--border)}.intro{align-items:start;flex-direction:column}.host-head{align-items:start}.actions{flex-wrap:wrap;justify-content:flex-end}}
+.host-link{display:block;text-align:left;border:0;background:none;padding:0;color:var(--text);font-size:20px;font-weight:700;letter-spacing:-.02em;overflow-wrap:anywhere}.host-link:hover{background:none;color:var(--green)}.host-toolbar{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin:24px 0}.host-toolbar select{background:var(--control);color:var(--text);border:1px solid var(--control-border);border-radius:7px;padding:9px;font:inherit}.chart-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px;margin:18px 0 28px}.chart{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:18px;min-width:0}.chart h3{margin:0;font-size:15px}.chart p{font-size:12px}.chart svg{display:block;width:100%;height:190px;margin-top:10px;overflow:visible}.chart svg text{fill:var(--muted);font-size:10px}.chart svg line.grid{stroke:var(--border)}.chart svg polyline{fill:none;stroke:var(--green);stroke-width:2;vector-effect:non-scaling-stroke}.chart svg circle{fill:var(--green)}.chart-empty{height:190px;display:grid;place-items:center;color:var(--muted);font-size:13px}.chart-dates{display:flex;justify-content:space-between;gap:10px;font-size:11px;color:var(--muted)}.view-heading{margin-top:28px}.host-heading{margin:0;font-size:30px;letter-spacing:-.03em}@media(max-width:750px){.chart-grid{grid-template-columns:1fr}}
+html[data-theme=light]{color-scheme:light;--logo-bg:#d1e4da;--logo-border:#e1eee6;--bg:#f4f7f5;--panel:#ffffff;--border:#cdd8d1;--muted:#52665b;--text:#172b20;--green:#18734b;--yellow:#885b08;--red:#b0332b;--control:#e8efea;--control-border:#a5b8ab;--control-hover:#dce7df;--finding:#172b2006;--detail:#344e3f;--check-border:#dce5df}
+.theme-switch{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;padding:9px}.theme-switch svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.theme-switch .moon,html[data-theme=light] .theme-switch .sun{display:none}html[data-theme=light] .theme-switch .moon{display:block}
+.modules{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:14px;margin-top:20px}.module{border:1px solid var(--border);border-radius:10px;padding:16px;min-width:0}.module h4{font-size:16px;margin:0}.module header{padding:0;gap:10px;margin-bottom:14px}.module-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:24px}.skipped{color:var(--muted)}@media(max-width:750px){.module-checks{grid-template-columns:1fr}}.module-row{border-top:1px solid var(--border);padding:10px 0;overflow-wrap:anywhere}.module-row strong{font-size:13px}.module-row p{font-size:12px;margin-top:4px}.module-row .state{float:right;font-size:12px;margin-left:8px}.demo-banner{padding:12px 18px;margin-bottom:16px;border:1px solid var(--yellow);border-radius:8px;color:var(--yellow)}
+.brand{color:var(--text);text-decoration:none}.brand:focus-visible{outline:2px solid var(--green);outline-offset:6px;border-radius:8px}.dashboard-footer{max-width:1200px;margin:auto;padding:0 28px 28px;text-align:right}.dashboard-footer button{border:0;background:none;color:var(--muted);padding:4px 0;font-size:12px;text-decoration:underline;text-underline-offset:3px}.dashboard-footer button:hover{color:var(--text)}
+</style>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;700;800&amp;display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<aside class="sidebar" aria-label="Dashboard navigation">
+<a class="brand" href="index.html" aria-label="Return to health reports"><img src="assets/sudoctor-mascot.png" alt="" width="42" height="48"><span class="terminal-mark" aria-hidden="true"><span class="prefix" aria-hidden="true">s</span><span class="prefix" aria-hidden="true">u</span><span class="shared shared-first" aria-hidden="true">d</span><span class="shared" aria-hidden="true">o</span><span class="suffix-first" aria-hidden="true">c</span><span aria-hidden="true">t</span><span aria-hidden="true">o</span><span aria-hidden="true">r</span></span></a>
+<nav aria-label="Main"><a id="nav-overview" class="nav-link" href="#" aria-current="page">Overview</a><a id="nav-hosts" class="nav-link" href="#hosts">Hosts</a><a id="nav-about" class="nav-link" href="#/about">About</a></nav>
+<p class="sidebar-note"><span>&gt;_ health, in check.</span>System health &amp; diagnostics</p>
+</aside>
+<header class="topbar"><div class="page-title"><span aria-hidden="true">~/</span><span id="page-title">Overview</span></div><div class="actions"><button id="refresh" type="button">Refresh</button><label><input id="files" type="file" accept=".json,application/json" multiple><span class="button">Open reports</span></label><button class="theme-switch" id="theme" type="button" aria-label="Switch to light theme" title="Switch to light theme"><svg class="sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2m0 16v2M2 12h2m16 0h2M5 5l1.5 1.5m11 11L19 19M5 19l1.5-1.5m11-11L19 5"/></svg><svg class="moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M20.9 13A9 9 0 0 1 11 3.1 9 9 0 1 0 20.9 13Z"/></svg></button></div></header>
+<main>
+<section id="home-intro" class="intro" aria-labelledby="intro-title"><img class="intro-mascot" src="assets/sudoctor-mascot.png" alt="sudoctor penguin doctor" width="106" height="120"><div class="intro-copy"><div class="main-wordmark">sudoctor</div><div class="eyebrow">System health / diagnostics</div><h1 id="intro-title">Your systems. In good hands.</h1><p>Health checks, findings, and host history. All in one place.</p><p id="source" class="meta" aria-live="polite">Looking for reports…</p></div></section>
+<div id="overview"><section class="summary" aria-label="Report summary"><div class="stat"><span class="eyebrow">Hosts</span><strong id="total">0</strong></div><div class="stat"><span class="eyebrow">Healthy</span><strong id="healthy" class="ok">0</strong></div><div class="stat"><span class="eyebrow">Warnings</span><strong id="warnings" class="warning">0</strong></div><div class="stat"><span class="eyebrow">Critical</span><strong id="critical" class="critical">0</strong></div><div class="stat"><span class="eyebrow">Unknown</span><strong id="unknown" class="unknown">0</strong></div></section>
+<div class="section-title" id="hosts"><h2>Hosts</h2><span class="meta">Latest available reports</span></div><div id="notice" class="notice hidden" role="status"></div><div id="reports"></div></div><section id="host-view" class="hidden" aria-label="Host history"></section>
+<section id="about-view" class="about-view hidden" aria-labelledby="about-title">
+<div class="eyebrow">About the project</div>
+<h1 id="about-title">About sudoctor</h1>
+<p class="about-lead">System health checks, findings, and report history for your Linux hosts.</p>
+<div class="about-card"><h2>From checks to a clearer picture</h2><p>sudoctor collects health reports for your hosts. This dashboard brings their latest results and previous snapshots together, so you can review findings and see how resource usage changes over time.</p></div>
+<div class="about-card"><h2>Reading your reports</h2><p>Overview summarizes host health. Open a host to explore its history, select a snapshot, and inspect operating system, update, application, and service checks. Available checks depend on the report collected from that host.</p><p>Healthy means no issues were reported. Warnings need attention, critical findings indicate a problem, and unknown means a result is unavailable. Report timestamps help you judge how current the results are.</p></div>
+<div class="about-card"><h2>Your data, or a quick look around</h2><p>Use Open reports to load JSON reports, or Refresh to reload reports from your server. View demo loads three fictional hosts with four snapshots each. Demo reports are labeled; on local and Docker dashboards, Refresh returns to your real reports.</p></div>
+</section>
+</main>
+<footer class="dashboard-footer"><button id="demo" type="button">View demo</button></footer>
+<script>
+const $ = id => document.getElementById(id);
+const demoDefault = document.documentElement.dataset.demoDefault === 'true';
+function updateThemeButton() {
+  const label = document.documentElement.dataset.theme === 'light' ? 'Switch to dark theme' : 'Switch to light theme';
+  $('theme').setAttribute('aria-label', label);
+  $('theme').title = label;
+}
+updateThemeButton();
+$('theme').addEventListener('click', () => {
+  const theme = document.documentElement.dataset.theme === 'light' ? 'dark' : 'light';
+  document.documentElement.dataset.theme = theme;
+  updateThemeButton();
+  try { localStorage.setItem('sudoctor-theme', theme); } catch {}
+});
+const escapeHtml = value => String(value).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const number = (value, suffix = '') => typeof value === 'number' && Number.isFinite(value) ? `${value}${suffix}` : '—';
+const text = value => value == null ? '—' : escapeHtml(value);
+function date(value) { const d = new Date(value); return value && !Number.isNaN(d.getTime()) ? d.toLocaleString() : 'Unknown time'; }
+function checkResult(type, value) {
+  if (typeof value === 'boolean') return [value ? 'ok' : 'critical', value ? 'Passing' : 'Failed'];
+  if (!value || typeof value !== 'object') return ['unknown', String(value ?? 'Unknown')];
+  if (type === 'http') return [value.ok ? 'ok' : 'critical', `${value.ok ? 'Passing' : 'Failed'} · ${value.response ?? 'no response'}`];
+  if (type === 'docker') return [value.running && value.health !== 'unhealthy' ? 'ok' : 'critical', !value.exists ? 'Missing' : !value.running ? 'Stopped' : value.health || 'Running'];
+  if (type === 'tmux' && value.error) return ['critical', value.error];
+  if (type === 'tmux') { const missing = [...(value.windows_missing || []), ...(value.panes_missing || [])]; return [value.running && !missing.length ? 'ok' : 'critical', !value.running ? 'Not running' : missing.length ? `Missing: ${missing.join(', ')}` : 'Running']; }
+  return ['unknown', JSON.stringify(value)];
+}
+function renderModules(report) {
+  const categories = new Map();
+  for (const check of Array.isArray(report.checks) ? report.checks : []) {
+    if (!check || typeof check !== 'object') continue;
+    const category = check.category || 'other';
+    if (!categories.has(category)) categories.set(category, []);
+    categories.get(category).push(check);
+  }
+  const titles = {os_updates:'Operating system and update health', security:'Security health'};
+  return `<div class="modules">${[...categories].map(([category, checks]) => {
+    const states = checks.map(c => c.status);
+    const state = ['critical','warning','unknown','ok','skipped'].find(s => states.includes(s)) || 'unknown';
+    return `<section class="module"><header><h4>${text(titles[category] || category)}</h4><span class="badge ${state}">${state}</span></header><div class="module-checks">${checks.map(c => {
+      const status = ['ok','warning','critical','unknown','skipped'].includes(c.status) ? c.status : 'unknown';
+      return `<div class="module-row"><span class="state ${status}">${status === 'ok' ? 'Passing' : text(status)}</span><strong>${text(c.label || c.id)}</strong><p>${text(c.message)}</p></div>`;
+    }).join('')}</div></section>`;
+  }).join('')}</div>`;
+}
+function renderReport({name, data:r}, history = '', historyHostIndex = '') {
+  const live = liveHosts?.[name]; const status = live ? (live.stale ? 'unknown' : ['ok','warning','critical'].includes(live.attempt?.outcome) ? live.attempt.outcome : 'unknown') : (['ok','warning','critical'].includes(r.status) ? r.status : 'unknown');
+  const mem = r.memory_mb || {}; const used = typeof mem.MemTotal === 'number' && typeof mem.MemAvailable === 'number' ? mem.MemTotal - mem.MemAvailable : null;
+  const findings = [...(Array.isArray(r.issues) ? r.issues.map(x => ['critical', x]) : []), ...(Array.isArray(r.warnings) ? r.warnings.map(x => ['warning', x]) : [])];
+  const checks = Object.entries(r.details || {}).filter(([, entries]) => entries && typeof entries === 'object' && Object.keys(entries).length).map(([type, entries]) => `<div><h4>${text(type)}</h4>${Object.entries(entries).map(([key, value]) => { const [state, label] = checkResult(type, value); return `<div class="check"><span>${text(key)}</span><span class="${state}">${text(label)}</span></div>`; }).join('')}</div>`).join('');
+  return `<article class="host"><div class="host-head"><div><h3><button class="host-link" type="button" data-open-host="${historyHostIndex}">${text(r.hostname || name)}</button></h3><div class="meta">${text(name)} · Reported ${text(date(r.timestamp_utc))}${live ? ` · Last attempt: ${text(live.attempt?.outcome || 'not run')} at ${text(date(live.attempt?.ended_at || live.attempt?.started_at))}${live.stale ? ' · Stale' : ''}` : ''}</div></div><span class="badge ${status}">${status === 'ok' ? 'Healthy' : status}</span></div>${history}<div class="metrics"><div class="metric"><small>Uptime</small><strong>${number(r.uptime_hours, ' h')}</strong></div><div class="metric"><small>Load average · 1 / 5 / 15 min</small><strong>${Array.isArray(r.load_average) ? r.load_average.map(v => number(v)).join(' / ') : '—'}</strong></div><div class="metric"><small>Memory used / total</small><strong>${number(used)} / ${number(mem.MemTotal, ' MB')}</strong></div><div class="metric"><small>Root disk used</small><strong>${number(r.root_disk_used_percent, '%')}</strong><small>${number(r.root_disk_free_mb, ' MB')} free</small></div><div class="metric"><small>Updates / reboot</small><strong>${number(r.pending_updates)} / ${r.reboot_required === true ? 'Required' : r.reboot_required === false ? 'No' : '—'}</strong></div></div><div class="content">${r.demo ? '<div class="demo-banner">Demo report. All hosts and findings are fictional.</div>' : ''}<div class="findings">${findings.length ? findings.map(([state, item]) => `<div class="finding ${state}">${text(item)}</div>`).join('') : r.status === 'unknown' ? '<p>No report collected yet.</p>' : '<div class="all-clear">No issues or warnings in the last report</div>'}</div>${renderModules(r)}<details><summary>Application and service checks</summary>${checks ? `<div class="checks">${checks}</div>` : '<p class="meta" style="margin-top:12px">No service checks recorded.</p>'}</details></div></article>`;
+}
+let groups = [];
+let liveHosts = null;
+function timestamp(report) { const time = Date.parse(report.data.timestamp_utc); return Number.isNaN(time) ? -Infinity : time; }
+function renderHost(index, selected = 0) {
+  const group = groups[index];
+  const history = group.reports.length > 1 ? `<div class="history"><label for="history-${index}">Snapshot</label><select id="history-${index}" data-host="${index}" aria-label="Snapshot for ${text(group.label)}">${group.reports.map((report, i) => `<option value="${i}" ${i === selected ? 'selected' : ''}>${text(date(report.data.timestamp_utc))}${i === 0 ? ' · Latest' : ''} · ${text(report.data.status)}</option>`).join('')}</select><span>${group.reports.length} snapshots</span></div>` : '<div class="history">1 snapshot</div>';
+  return renderReport(group.reports[selected], history, index);
+}
+function show(reports, errors, source) {
+  $('source').textContent = source;
+  const byHost = new Map();
+  for (const report of reports) {
+    const key = report.alias || report.data.hostname || report.name;
+    if (!byHost.has(key)) byHost.set(key, []);
+    const snapshots = byHost.get(key);
+    // The top-level latest report is also stored in the archive.
+    if (!snapshots.some(item => item.data.timestamp_utc && item.data.timestamp_utc === report.data.timestamp_utc)) snapshots.push(report);
+  }
+  groups = [...byHost.entries()].map(([label, snapshots]) => ({label, reports: snapshots.sort((a, b) => timestamp(b) - timestamp(a))})).sort((a, b) => a.label.localeCompare(b.label));
+  $('total').textContent = groups.length;
+  for (const [id, status] of [['healthy','ok'],['warnings','warning'],['critical','critical']]) $(id).textContent = groups.filter(group => liveHosts ? !liveHosts[group.label]?.stale && liveHosts[group.label]?.attempt?.outcome === status : group.reports[0].data.status === status).length;
+  $('unknown').textContent = groups.filter(group => liveHosts ? liveHosts[group.label]?.stale || !['ok','warning','critical'].includes(liveHosts[group.label]?.attempt?.outcome) : !['ok','warning','critical'].includes(group.reports[0].data.status)).length;
+  $('notice').textContent = errors.join('\n'); $('notice').classList.toggle('hidden', !errors.length);
+  $('reports').innerHTML = groups.length ? groups.map((_, i) => `<div data-host-container="${i}">${renderHost(i)}</div>`).join('') : '<div class="empty"><h2>No reports to display</h2><p>Run a health check, then refresh, or use Open reports to select JSON files.</p></div>';
+  renderView();
+}
+function chart(title, unit, reports, getValue, bounds = null) {
+  const points = reports.map(report => ({time: timestamp(report), value: getValue(report.data)})).filter(point => Number.isFinite(point.time) && typeof point.value === 'number' && Number.isFinite(point.value)).sort((a,b) => a.time - b.time);
+  if (!points.length) return `<div class="chart"><h3>${title}</h3><div class="chart-empty">No data available</div></div>`;
+  const min = bounds ? bounds[0] : Math.min(0, ...points.map(p => p.value));
+  const max = bounds ? bounds[1] : Math.max(1, ...points.map(p => p.value));
+  const start = points[0].time, end = points[points.length - 1].time;
+  const x = p => start === end ? 205 : 45 + (p.time - start) / (end - start) * 320;
+  const y = p => 155 - Math.max(0, Math.min(1, (p.value - min) / (max - min))) * 130;
+  const marks = points.map(p => `<circle cx="${x(p)}" cy="${y(p)}" r="4"><title>${text(date(p.time))}: ${number(p.value)}${unit}</title></circle>`).join('');
+  return `<div class="chart"><h3>${title}</h3><p>${points.length} recorded ${points.length === 1 ? 'point' : 'points'} · ${unit || 'count'}</p><svg viewBox="0 0 380 170" role="img" aria-label="${title}: ${points.length} data points, latest ${number(points[points.length - 1].value)}${unit}"><line class="grid" x1="45" x2="365" y1="25" y2="25"/><line class="grid" x1="45" x2="365" y1="90" y2="90"/><line class="grid" x1="45" x2="365" y1="155" y2="155"/><text x="2" y="29">${number(max)}</text><text x="2" y="159">${number(min)}</text>${points.length > 1 ? `<polyline points="${points.map(p => `${x(p)},${y(p)}`).join(' ')}"/>` : ''}${marks}</svg><div class="chart-dates"><span>${text(date(start))}</span><span>${start === end ? '' : text(date(end))}</span></div></div>`;
+}
+function renderView() {
+  const key = decodeURIComponent(location.hash.slice(1));
+  const about = key === '/about';
+  const index = about ? -1 : groups.findIndex(group => group.label === key);
+  $('home-intro').classList.toggle('hidden', about || index !== -1 || key === 'hosts');
+  $('about-view').classList.toggle('hidden', !about);
+  $('overview').classList.toggle('hidden', about || index !== -1);
+  $('host-view').classList.toggle('hidden', index === -1);
+  $('page-title').textContent = about ? 'About' : index !== -1 ? 'Host details' : key === 'hosts' ? 'Hosts' : 'Overview';
+  for (const id of ['nav-overview', 'nav-hosts', 'nav-about']) {
+    const active = id === (about ? 'nav-about' : index !== -1 || key === 'hosts' ? 'nav-hosts' : 'nav-overview');
+    if (active) $(id).setAttribute('aria-current', 'page'); else $(id).removeAttribute('aria-current');
+  }
+  if (index === -1) { if (key === 'hosts') $('hosts').scrollIntoView({block:'start'}); return; }
+  const group = groups[index], reports = group.reports;
+  $('host-view').innerHTML = `<div class="host-toolbar"><button type="button" id="back-overview">← All hosts</button><label for="host-select">Host</label><select id="host-select">${groups.map(g => `<option value="${text(g.label)}" ${g.label === key ? 'selected' : ''}>${text(g.reports[0].data.hostname || g.label)} (${text(g.label)})</option>`).join('')}</select></div><h2 class="host-heading">${text(reports[0].data.hostname || group.label)}</h2><p>${text(group.label)} · ${reports.length} ${reports.length === 1 ? 'snapshot' : 'snapshots'} · Times shown in your local timezone</p><div class="section-title view-heading"><h2>History</h2></div><div class="chart-grid">${chart('Root disk used', '%', reports, r => r.root_disk_used_percent, [0,100])}${chart('Memory used', '%', reports, r => { const m = r.memory_mb || {}; return typeof m.MemTotal === 'number' && m.MemTotal > 0 && typeof m.MemAvailable === 'number' ? Math.round((m.MemTotal - m.MemAvailable) / m.MemTotal * 1000) / 10 : null; }, [0,100])}${chart('Load average · 1 minute', '', reports, r => Array.isArray(r.load_average) ? r.load_average[0] : null)}${chart('Pending updates', '', reports, r => r.pending_updates)}</div><div class="section-title"><h2>Snapshot details</h2><span class="meta">Select a snapshot to inspect its checks</span></div><div data-host-container="${index}">${renderHost(index)}</div>`;
+}
+window.addEventListener('hashchange', renderView);
+document.addEventListener('click', event => {
+  const host = event.target.closest('[data-open-host]');
+  if (host) location.hash = encodeURIComponent(groups[Number(host.dataset.openHost)].label);
+  if (event.target.id === 'back-overview') location.hash = '';
+});
+document.addEventListener('change', event => {
+  if (event.target.id === 'host-select') location.hash = encodeURIComponent(event.target.value);
+  if (!event.target.matches('select[data-host]')) return;
+  const index = Number(event.target.dataset.host), selected = Number(event.target.value);
+  const container = event.target.closest('[data-host-container]');
+  container.innerHTML = renderHost(index, selected);
+  container.querySelector('select[data-host]').focus();
+});
+function validate(data, name, alias = null) { if (!data || typeof data !== 'object' || Array.isArray(data) || typeof data.status !== 'string') throw new Error(`${name}: not a health report`); return {name, data, alias}; }
+async function listing(path) {
+  const response = await fetch(path, {cache:'no-store'}); if (!response.ok) throw new Error(`${path}: HTTP ${response.status}`);
+  const doc = new DOMParser().parseFromString(await response.text(), 'text/html');
+  return [...new Set([...doc.querySelectorAll('a[href]')].map(a => a.getAttribute('href')).filter(href => /^(?!\.\.?\/?$)[^/?#]+\/?$/.test(href)))];
+}
+async function discover() {
+  $('demo').textContent = 'View demo';
+  $('source').textContent = 'Looking for reports…';
+  try {
+    const api = await fetch('/api/overview', {cache:'no-store'});
+    if (api.ok) {
+      const state = await api.json();
+      if (Array.isArray(state.reports)) {
+        liveHosts = null;
+        show(state.reports.map(report => validate(report.data, report.name, report.alias)), state.errors || [], `Loaded from ${state.source}`); return;
+      }
+      liveHosts = state.hosts;
+      const reports = Object.entries(state.hosts).map(([name, host]) => ({name, alias:name, data:host.report || {status:'unknown', hostname:name}}));
+      show(reports, state.error ? [state.error] : [], `Last sweep: ${date(state.last_sweep)}`); return;
+    }
+    liveHosts = null;
+    const entries = await listing('../reports/');
+    const paths = entries.filter(name => /\.json$/i.test(name)).map(name => ({path:name, alias:decodeURIComponent(name.replace(/\.json$/i, ''))}));
+    const directories = entries.filter(name => name.endsWith('/'));
+    const archives = await Promise.allSettled(directories.map(async dir => (await listing(`../reports/${dir}`)).filter(name => /\.json$/i.test(name)).map(name => ({path:dir + name, alias:decodeURIComponent(dir.slice(0, -1))}))));
+    for (const result of archives) if (result.status === 'fulfilled') paths.push(...result.value);
+    const results = await Promise.allSettled(paths.map(async ({path, alias}) => { const res = await fetch(`../reports/${path}`, {cache:'no-store'}); if (!res.ok) throw new Error(`${path}: HTTP ${res.status}`); return validate(await res.json(), decodeURIComponent(path), alias); }));
+    const errors = [...archives, ...results].filter(r => r.status === 'rejected').map(r => String(r.reason));
+    show(results.filter(r => r.status === 'fulfilled').map(r => r.value), errors, 'Loaded from reports/');
+  } catch (error) { show([], ['Automatic loading requires a local web server with directory listing. Use Open reports to select files.'], 'Select reports to get started'); }
+}
+function showDemo() {
+  liveHosts = null;
+  const now = Date.now();
+  const reports = [];
+  const scenarios = [
+    {name:'azure-api-demo', updates:14, security:3, reboot:true, support:'2029-05-31', status:'warning'},
+    {name:'onprem-worker-demo', updates:0, security:0, reboot:false, support:'2029-05-31', status:'ok'},
+    {name:'azure-legacy-demo', updates:null, security:null, reboot:false, support:null, status:'warning'}
+  ];
+  for (const scenario of scenarios) for (let day = 0; day < 4; day++) {
+    const count = scenario.updates == null ? null : scenario.updates === 0 ? 0 : scenario.updates + day * 2;
+    const check = (id, label, value, message, status='ok') => ({id:`os_updates.${id}`, category:'os_updates', label, value, message, status});
+    const checks = [
+      check('release','Operating system','Ubuntu 24.04 LTS','Ubuntu 24.04 LTS'),
+      check('kernel','Running kernel',scenario.name.startsWith('azure') ? '6.8.0-azure' : '6.8.0-generic',scenario.name.startsWith('azure') ? '6.8.0-azure' : '6.8.0-generic'),
+      check('available','Available updates',count,count == null ? 'APT indexes could not be read' : `${count} upgradable packages in local APT indexes`, count == null ? 'unknown' : count ? 'warning' : 'ok'),
+      check('security','Security update candidates',scenario.security,scenario.security == null ? 'Security candidates unavailable' : `${scenario.security} candidates from security suites. Cached suite names only.`,scenario.security == null ? 'unknown' : scenario.security ? 'warning' : 'ok'),
+      check('indexes','APT index freshness',null,scenario.updates == null ? 'Last recorded successful index refresh 15 days ago' : 'Last recorded successful index refresh 0.2 days ago',scenario.updates == null ? 'warning' : 'ok'),
+      check('reboot','Pending reboot',scenario.reboot,scenario.reboot ? 'Reboot required to finish updates' : 'No reboot-required marker',scenario.reboot ? 'warning' : 'ok'),
+      check('support','Standard OS support',scenario.support,scenario.support ? `Standard support ends ${scenario.support}` : 'No local lifecycle data available',scenario.support ? 'ok' : 'unknown'),
+      check('packages','Package configuration',false,'No incomplete package states reported by dpkg'),
+      check('restarts','Pending service restarts',null,'Not collected. Requires an optional restart inspection tool.','skipped')
+    ];
+    const data = {demo:true, hostname:scenario.name, timestamp_utc:new Date(now - day * 86400000).toISOString(), status:scenario.status,
+      uptime_hours:120 - day * 24, load_average:[0.3,0.2,0.1], memory_mb:{MemTotal:8192,MemAvailable:6000-day*100}, root_disk_used_percent:42-day*2,
+      root_disk_free_mb:23000, pending_updates:count, reboot_required:scenario.reboot, checks, issues:[],
+      warnings:checks.filter(c => c.status === 'warning').map(c => `${c.label}: ${c.message}`), details:{services:{'ssh.service':true}}};
+    reports.push({name:`${scenario.name}-${day}.json`,alias:scenario.name,data});
+  }
+  show(reports, [demoDefault ? 'Demo mode. Fictional data only.' : 'Demo mode. Fictional data only. Refresh returns to your reports.'], 'Demo reports · 3 fictional hosts · 4 snapshots each');
+  $('demo').textContent = 'Reload demo';
+}
+$('demo').addEventListener('click', showDemo);
+$('refresh').addEventListener('click', demoDefault ? showDemo : discover);
+$('files').addEventListener('change', async event => {
+  const files = [...event.target.files]; if (!files.length) return; liveHosts = null;
+  const results = await Promise.allSettled(files.map(async file => { try { return validate(JSON.parse(await file.text()), file.name); } catch (error) { throw new Error(`${file.name}: ${error.message}`); } }));
+  show(results.filter(r => r.status === 'fulfilled').map(r => r.value), results.filter(r => r.status === 'rejected').map(r => r.reason.message), 'Loaded from selected files'); event.target.value = '';
+});
+if (demoDefault) showDemo(); else discover();
+</script>
+</body>
+</html>

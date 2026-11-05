@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=../../schemas/inventory.schema.json
+---
+# EXAMPLE ONLY: edit to match the real host before running setup or update.
+sudoctor_update_enabled: true
+sudoctor_auto_reboot: false
+sudoctor_services:
+  - ssh.service
+  - docker.service
+sudoctor_docker: []
+sudoctor_tcp: []
+sudoctor_http: []
+sudoctor_tmux: []
+# Example persistent tmux application (uncomment and customize):
+# sudoctor_tmux:
+#   - name: worker                 # unique, lowercase, letters/digits/hyphens only
+#     user: alan
+#     vpn_unit: netbird.service     # optional; use the *real* unit name
+#     ready_tcp:                   # optional; probe real dependency, not just VPN process
+#       host: 10.10.0.2
+#       port: 5432
+#       timeout: 180
+#     windows:
+#       - name: worker
+#         command: 'exec /home/alan/apps/worker/start.sh'
+#       - name: metrics
+#         command: 'exec /home/alan/apps/metrics/run.sh'

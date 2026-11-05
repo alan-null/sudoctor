@@ -1,0 +1,54 @@
+---
+- name: Collect remote health reports
+  hosts: servers
+  gather_facts: false
+  become: true
+  serial: 1
+  tasks:
+    - name: Collect health as JSON
+      ansible.builtin.command:
+        argv: [python3, /usr/local/libexec/sudoctor-health.py, /etc/sudoctor/health.json]
+      changed_when: false
+      register: health_raw
+    - name: Read health
+      ansible.builtin.set_fact:
+        health: '{{ health_raw.stdout | from_json }}'
+    - name: Create local report history directory
+      ansible.builtin.file:
+        path: "{{ lookup('ansible.builtin.env', 'SUDOCTOR_REPORT_DIR') | default(playbook_dir ~ '/../reports', true) }}/{{ inventory_hostname }}"
+        state: directory
+        mode: '0700'
+      delegate_to: localhost
+      become: false
+    - name: Archive report locally
+      ansible.builtin.copy:
+        content: "{{ health | to_nice_json }}\n"
+        dest: "{{ lookup('ansible.builtin.env', 'SUDOCTOR_REPORT_DIR') | default(playbook_dir ~ '/../reports', true) }}/{{ inventory_hostname }}/{{ health.timestamp_utc | regex_replace('[^0-9A-Za-z_-]', '-') }}.json"
+        mode: '0600'
+        force: false
+      delegate_to: localhost
+      become: false
+    - name: Store report locally
+      ansible.builtin.copy:
+        content: "{{ health | to_nice_json }}\n"
+        dest: "{{ lookup('ansible.builtin.env', 'SUDOCTOR_REPORT_DIR') | default(playbook_dir ~ '/../reports', true) }}/{{ inventory_hostname }}.json"
+        mode: '0600'
+      delegate_to: localhost
+      become: false
+    - name: Display summary
+      ansible.builtin.debug:
+        msg:
+          - '{{ inventory_hostname }}: {{ health.status }} | uptime={{ health.uptime_hours }}h | updates={{ health.pending_updates }} | reboot required={{ health.reboot_required }}'
+          - 'Issues: {{ health.issues | join("; ") if health.issues else "none" }}'
+          - 'Warnings: {{ health.warnings | join("; ") if health.warnings else "none" }}'
+    - name: Display operating system and update checks
+      ansible.builtin.debug:
+        msg: '{{ item.label }} [{{ item.status }}]: {{ item.message }}'
+      loop: '{{ health.checks | default([]) }}'
+      loop_control:
+        label: '{{ item.id }}'
+      when: item.category == 'os_updates'
+    - name: Fail on critical health problems
+      ansible.builtin.assert:
+        that: health.status != 'critical'
+        fail_msg: 'Critical findings; see the configured report directory'

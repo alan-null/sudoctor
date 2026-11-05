@@ -1,0 +1,41 @@
+name: sudoctor
+
+services:
+  scheduler:
+    image: sudoctor-scheduler:local
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: scheduler
+    command: scheduler
+    restart: unless-stopped
+    environment:
+      SUDOCTOR_INVENTORY: /app/inventory/hosts.ini
+      SUDOCTOR_CRON: ${SUDOCTOR_CRON:-*/15 * * * *}
+      SUDOCTOR_HOST_TIMEOUT: ${SUDOCTOR_HOST_TIMEOUT:-180}
+      SUDOCTOR_STALE_SECONDS: ${SUDOCTOR_STALE_SECONDS:-3600}
+      TZ: ${TZ:-UTC}
+    volumes:
+      - state:/state
+      - ${SUDOCTOR_INVENTORY_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/sudoctor/inventory}:/app/inventory:ro
+      - ${SUDOCTOR_SSH_DIR:-~/.ssh}:/root/.ssh:ro
+  dashboard:
+    image: sudoctor-dashboard:local
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      target: dashboard
+    restart: unless-stopped
+    read_only: true
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    environment:
+      SUDOCTOR_STALE_SECONDS: ${SUDOCTOR_STALE_SECONDS:-3600}
+    ports:
+      - "${SUDOCTOR_BIND_ADDRESS:-127.0.0.1}:${SUDOCTOR_PORT:-8000}:8000"
+    volumes:
+      - state:/state:ro
+volumes:
+  state:
