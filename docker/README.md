@@ -11,22 +11,7 @@ docker pull ghcr.io/alan-null/sudoctor-dashboard:latest
 
 Default-branch builds receive `latest`; version tags receive full and minor version tags (for example, `1.2.3` and `1.2`). Published builds also receive a `sha-<short-commit>` tag. Use a version tag or image digest to pin deployments. Publishing uses the built-in `GITHUB_TOKEN` and requires no additional registry secrets. To allow anonymous pulls, set each GHCR package's visibility to public after its first publication; private packages require `docker login ghcr.io` with a token that has `read:packages` access.
 
-The Compose configuration below builds locally. To consume published images with the same configuration, create a `compose.published.yaml` alongside `compose.yaml`:
-
-```yaml
-services:
-  scheduler:
-    image: ghcr.io/alan-null/sudoctor-scheduler:latest
-  dashboard:
-    image: ghcr.io/alan-null/sudoctor-dashboard:latest
-```
-
-After configuring the inventory and SSH mounts as described below, run these commands from this directory:
-
-```bash
-docker compose -f compose.yaml -f compose.published.yaml pull
-docker compose -f compose.yaml -f compose.published.yaml up -d --no-build
-```
+The [Compose file](compose.yaml) uses these published images. After configuring the inventory and SSH mounts as described below, run `docker compose pull` and `docker compose up -d` from this directory.
 
 ## Local deployment
 
@@ -39,7 +24,8 @@ Docker Compose runs checks on a schedule and serves the dashboard from a separat
 ```bash
 cd docker
 cp .env.example .env
-docker compose up -d --build
+docker compose pull
+docker compose up -d
 ```
 
 Open `http://127.0.0.1:8000` on the controller. The dashboard binds to loopback by default and does not require Caddy. To access it from another machine, set `SUDOCTOR_BIND_ADDRESS` to a reachable address and restrict access with your network controls. The dashboard has no built-in authentication and reports can contain private hostnames and URLs.
