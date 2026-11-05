@@ -1,0 +1,6 @@
+.git
+reports
+inventory
+__pycache__
+*.pyc
+.env

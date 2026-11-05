@@ -1,0 +1,23 @@
+---
+- name: Create local report history directory
+  ansible.builtin.file:
+    path: "{{ lookup('ansible.builtin.env', 'SUDOCTOR_REPORT_DIR') | default(playbook_dir ~ '/../reports', true) }}/{{ inventory_hostname }}"
+    state: directory
+    mode: '0700'
+  delegate_to: localhost
+  become: false
+- name: Archive report locally
+  ansible.builtin.copy:
+    content: "{{ health | to_nice_json }}\n"
+    dest: "{{ lookup('ansible.builtin.env', 'SUDOCTOR_REPORT_DIR') | default(playbook_dir ~ '/../reports', true) }}/{{ inventory_hostname }}/{{ health.timestamp_utc | regex_replace('[^0-9A-Za-z_-]', '-') }}.json"
+    mode: '0600'
+    force: false
+  delegate_to: localhost
+  become: false
+- name: Store latest report locally
+  ansible.builtin.copy:
+    content: "{{ health | to_nice_json }}\n"
+    dest: "{{ lookup('ansible.builtin.env', 'SUDOCTOR_REPORT_DIR') | default(playbook_dir ~ '/../reports', true) }}/{{ inventory_hostname }}.json"
+    mode: '0600'
+  delegate_to: localhost
+  become: false

@@ -1,0 +1,11 @@
+# yaml-language-server: $schema=../../schemas/inventory.schema.json
+---
+sudoctor_update_enabled: false      # opt in per host
+sudoctor_auto_reboot: false         # opt in per host
+sudoctor_disk_warning_percent: 85
+sudoctor_min_free_mb: 1024
+sudoctor_services: []               # systemd units required to be active
+sudoctor_docker: []                 # containers required to be running (and healthy if applicable)
+sudoctor_tcp: []                    # [{name: vpn-backend, host: 10.0.0.1, port: 443}]
+sudoctor_http: []                   # [{name: app, url: http://127.0.0.1:8000/health, status: 200}]
+sudoctor_tmux: []                   # see host_vars example

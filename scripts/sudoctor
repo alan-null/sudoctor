@@ -1,0 +1,68 @@
+#!/usr/bin/env bash
+set -euo pipefail
+ROOT="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)"
+CALLER_DIR="$PWD"
+usage() {
+  cat <<'USAGE'
+Usage: ./scripts/sudoctor <setup|check|update|reboot|recover|dashboard> [host-or-group] [--inventory PATH] [--yes]
+  dashboard serve local reports at http://127.0.0.1:8000
+  setup   install or refresh health collector, expectations, tmux boot services
+  check   read-only report (rerun setup after collector changes)
+  update  apply safe APT upgrades, reboot only if enabled in host_vars
+  reboot  force reboot and verify applications
+  recover start missing allowlisted services and restore tmux windows
+
+Examples:
+  ./scripts/sudoctor setup cloud-dev
+  ./scripts/sudoctor check
+  ./scripts/sudoctor update cloud-dev --yes
+  ./scripts/sudoctor reboot cloud-dev --yes
+
+Inventory: --inventory PATH, SUDOCTOR_INVENTORY, or ~/.config/sudoctor/inventory/hosts.ini
+Reports: SUDOCTOR_REPORT_DIR or ~/.local/state/sudoctor/reports
+XDG_CONFIG_HOME and XDG_STATE_HOME are respected.
+Optional environment variable: SUDOCTOR_BECOME_ARGS='--ask-become-pass'
+USAGE
+}
+[[ $# -ge 1 ]] || { usage; exit 2; }
+action="$1"; shift
+if [[ "$action" == dashboard ]]; then
+  [[ $# -eq 0 ]] || { echo 'Usage: sudoctor dashboard' >&2; exit 2; }
+  exec python3 "$ROOT/scripts/sudoctor-dashboard.py" --local
+fi
+case "$action" in setup|check|update|reboot|recover) ;; *) usage; exit 2;; esac
+host=servers
+host_set=0
+inventory="${SUDOCTOR_INVENTORY:-${XDG_CONFIG_HOME:-$HOME/.config}/sudoctor/inventory/hosts.ini}"
+confirmed=0
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --inventory)
+      [[ $# -ge 2 && -n "$2" && "$2" != -* ]] || { echo '--inventory requires a path' >&2; exit 2; }
+      inventory="$2"; shift 2;;
+    --yes) confirmed=1; shift;;
+    -*) echo "Unknown flag: $1" >&2; exit 2;;
+    *)
+      [[ "$host_set" -eq 0 ]] || { echo 'Only one host/group may be specified' >&2; exit 2; }
+      host="$1"; host_set=1; shift;;
+  esac
+done
+[[ "$inventory" = /* ]] || inventory="$CALLER_DIR/$inventory"
+[[ -e "$inventory" ]] || { echo "Inventory not found: $inventory. Create an inventory with a servers group and adjacent host_vars/group_vars, or use --inventory PATH." >&2; exit 2; }
+export SUDOCTOR_REPORT_DIR="${SUDOCTOR_REPORT_DIR:-${XDG_STATE_HOME:-$HOME/.local/state}/sudoctor/reports}"
+[[ "$SUDOCTOR_REPORT_DIR" = /* ]] || export SUDOCTOR_REPORT_DIR="$CALLER_DIR/$SUDOCTOR_REPORT_DIR"
+export ANSIBLE_CONFIG="$ROOT/ansible.cfg"
+cd "$ROOT"
+if [[ "$action" == update || "$action" == reboot ]]; then
+  if [[ "$confirmed" -ne 1 ]]; then
+    echo "Refusing destructive operation without --yes ($action on $host)" >&2
+    exit 2
+  fi
+fi
+mkdir -p -m 700 "$SUDOCTOR_REPORT_DIR"
+# SSH uses normal OpenSSH configuration; privilege escalation can be passwordless sudo.
+extra=()
+if [[ -n "${SUDOCTOR_BECOME_ARGS:-}" ]]; then
+  read -r -a extra <<< "$SUDOCTOR_BECOME_ARGS"
+fi
+ansible-playbook "playbooks/$action.yml" --inventory "$inventory" --limit "$host" "${extra[@]}"

@@ -1,0 +1,10 @@
+{
+  "yaml.schemas": {
+    "./schemas/inventory.schema.json": [
+      "inventory/host_vars/*.yml",
+      "inventory/host_vars/*.yaml",
+      "inventory/group_vars/*.yml",
+      "inventory/group_vars/*.yaml"
+    ]
+  }
+}

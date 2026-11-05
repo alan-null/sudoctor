@@ -1,0 +1,29 @@
+---
+- name: Safe application recovery without reboot
+  hosts: servers
+  become: true
+  serial: 1
+  tasks:
+    - name: Ensure expected systemd services
+      ansible.builtin.systemd:
+        name: '{{ item }}'
+        state: started
+      loop: '{{ sudoctor_services }}'
+    - name: Attempt idempotent tmux session recovery
+      ansible.builtin.systemd:
+        name: 'sudoctor-tmux-{{ item.name }}.service'
+        state: started
+      loop: '{{ sudoctor_tmux }}'
+    - name: Check health
+      ansible.builtin.command:
+        argv: [python3, /usr/local/libexec/sudoctor-health.py, /etc/sudoctor/health.json]
+      changed_when: false
+      register: health_raw
+    - name: Save report
+      ansible.builtin.set_fact:
+        health: '{{ health_raw.stdout | from_json }}'
+    - name: Store and archive report locally
+      ansible.builtin.include_tasks: store-report.yml
+    - name: Fail on critical issues
+      ansible.builtin.assert:
+        that: (health_raw.stdout | from_json).status != 'critical'

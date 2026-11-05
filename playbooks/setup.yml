@@ -1,0 +1,98 @@
+---
+- name: Install sudoctor's lightweight on-host checks and tmux boot restoration
+  hosts: servers
+  become: true
+  serial: 1
+  tasks:
+    - name: Ensure Debian/Ubuntu
+      ansible.builtin.assert:
+        that: ansible_facts.os_family == 'Debian'
+        fail_msg: 'This starter supports Debian/Ubuntu only.'
+    - name: Validate tmux configurations
+      ansible.builtin.assert:
+        that:
+          - item.name is match('^[a-z][a-z0-9-]{0,49}$')
+          - item.user is match('^[a-z_][a-z0-9_-]*$')
+          - item.windows | length > 0
+        fail_msg: 'Invalid tmux configuration; see README'
+      loop: '{{ sudoctor_tmux }}'
+    - name: Require unique tmux session names
+      ansible.builtin.assert:
+        that: sudoctor_tmux | map(attribute='name') | unique | length == sudoctor_tmux | length
+        fail_msg: 'Tmux session names must be unique per host.'
+    - name: Ensure required packages for tmux restoration
+      ansible.builtin.apt:
+        name: [tmux, python3]
+        state: present
+        lock_timeout: 120
+      when: sudoctor_tmux | length > 0
+    - name: Ensure sudoctor scripts directory exists
+      ansible.builtin.file:
+        path: /usr/local/libexec
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+    - name: Install collector
+      ansible.builtin.copy:
+        src: ../scripts/sudoctor-health.py
+        dest: /usr/local/libexec/sudoctor-health.py
+        owner: root
+        group: root
+        mode: '0755'
+    - name: Ensure /etc/sudoctor/tmux exists
+      ansible.builtin.file:
+        path: /etc/sudoctor/tmux
+        state: directory
+        owner: root
+        group: root
+        mode: '0755'
+    - name: Install health expectations
+      ansible.builtin.copy:
+        dest: /etc/sudoctor/health.json
+        content: "{{ {'services': sudoctor_services, 'docker': sudoctor_docker, 'tcp': sudoctor_tcp, 'http': sudoctor_http, 'tmux': sudoctor_tmux, 'disk_warning_percent': sudoctor_disk_warning_percent, 'min_free_mb': sudoctor_min_free_mb} | to_nice_json }}\n"
+        owner: root
+        group: root
+        mode: '0644'
+    - name: Install tmux restorer
+      ansible.builtin.copy:
+        src: ../scripts/sudoctor-tmux.py
+        dest: /usr/local/libexec/sudoctor-tmux.py
+        owner: root
+        group: root
+        mode: '0755'
+    - name: Install tmux boot configs
+      ansible.builtin.copy:
+        validate: '/usr/local/libexec/sudoctor-tmux.py --validate %s'
+        dest: '/etc/sudoctor/tmux/{{ item.name }}.json'
+        content: "{{ item | to_nice_json }}\n"
+        owner: root
+        group: root
+        mode: '0644'
+      loop: '{{ sudoctor_tmux }}'
+      no_log: true
+    - name: Install per-session boot services
+      ansible.builtin.template:
+        src: ../templates/tmux.service.j2
+        dest: '/etc/systemd/system/sudoctor-tmux-{{ item.name }}.service'
+        owner: root
+        group: root
+        mode: '0644'
+      loop: '{{ sudoctor_tmux }}'
+      register: installed_units
+    - name: Reload systemd for tmux boot units
+      ansible.builtin.systemd:
+        daemon_reload: true
+      when: installed_units.changed
+    - name: Enable tmux boot recovery
+      ansible.builtin.systemd:
+        name: 'sudoctor-tmux-{{ item.name }}.service'
+        enabled: true
+        state: started
+      loop: '{{ sudoctor_tmux }}'
+    - name: Enable required systemd services (explicit allowlist)
+      ansible.builtin.systemd:
+        name: '{{ item }}'
+        enabled: true
+        state: started
+      loop: '{{ sudoctor_services }}'

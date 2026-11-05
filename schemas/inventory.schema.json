@@ -1,0 +1,370 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Sudoctor inventory variables",
+  "description": "Host/group variables. All sudoctor settings are optional because Ansible inherits group defaults. Unknown sudoctor_ keys are rejected; other Ansible variables are allowed.",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "sudoctor_update_enabled": {
+      "type": "boolean",
+      "default": false,
+      "description": "Explicit per-host opt-in to APT updates."
+    },
+    "sudoctor_auto_reboot": {
+      "type": "boolean",
+      "default": false,
+      "description": "Permit update to reboot when /var/run/reboot-required exists."
+    },
+    "sudoctor_disk_warning_percent": {
+      "$ref": "#/definitions/diskWarningPercent",
+      "default": 85
+    },
+    "sudoctor_min_free_mb": {
+      "$ref": "#/definitions/minFreeMb",
+      "default": 1024
+    },
+    "sudoctor_services": {
+      "$ref": "#/definitions/services"
+    },
+    "sudoctor_docker": {
+      "$ref": "#/definitions/docker"
+    },
+    "sudoctor_tcp": {
+      "$ref": "#/definitions/tcp"
+    },
+    "sudoctor_http": {
+      "$ref": "#/definitions/http"
+    },
+    "sudoctor_tmux": {
+      "$ref": "#/definitions/tmux"
+    }
+  },
+  "patternProperties": {
+    "^(?!sudoctor_).+$": {}
+  },
+  "definitions": {
+    "pane": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "description": "Stable pane identity and border label; unique within the window."
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "Trusted foreground command executed with /bin/bash -c. Use exec for long-running programs; short commands exit and are reported as dead panes. Never include secrets."
+        },
+        "cwd": {
+          "type": "string",
+          "pattern": "^/",
+          "description": "Existing absolute directory on the target host. Inherits from window/session, then defaults to the user home. No ~ or variable expansion."
+        }
+      },
+      "required": [
+        "name",
+        "command"
+      ]
+    },
+    "window": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-zA-Z0-9_-]+$",
+          "description": "Tmux window/tab name; unique within the session."
+        },
+        "cwd": {
+          "type": "string",
+          "pattern": "^/",
+          "description": "Existing absolute directory on the target host. Inherits from window/session, then defaults to the user home. No ~ or variable expansion."
+        },
+        "layout": {
+          "type": "string",
+          "enum": [
+            "even-horizontal",
+            "even-vertical",
+            "main-horizontal",
+            "main-vertical",
+            "tiled"
+          ],
+          "description": "Pane arrangement: side by side, stacked, large top, large left, or grid. Explicit layouts are reapplied during recovery."
+        },
+        "command": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "Single-pane shorthand. Use either command or panes, never both."
+        },
+        "panes": {
+          "type": "array",
+          "description": "Named panes in initial creation order. Use either panes or command, never both.",
+          "items": {
+            "$ref": "#/definitions/pane"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "oneOf": [
+        {
+          "required": [
+            "command"
+          ],
+          "not": {
+            "required": [
+              "panes"
+            ]
+          }
+        },
+        {
+          "required": [
+            "panes"
+          ],
+          "not": {
+            "required": [
+              "command"
+            ]
+          }
+        }
+      ]
+    },
+    "tcpProbe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "Unique label for this health probe."
+        },
+        "host": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "Target IP address or DNS name reachable from the server."
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        }
+      },
+      "required": [
+        "name",
+        "host",
+        "port"
+      ]
+    },
+    "readiness": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "host": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "Dependency IP address or DNS name reachable from the server."
+        },
+        "port": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 65535
+        },
+        "timeout": {
+          "type": "integer",
+          "minimum": 1,
+          "default": 180,
+          "description": "Readiness timeout in seconds. Keep below the boot unit total startup timeout of 300 seconds."
+        }
+      },
+      "required": [
+        "host",
+        "port"
+      ]
+    },
+    "tmuxSession": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9-]{0,49}$",
+          "description": "Tmux session and boot unit name; unique per host."
+        },
+        "user": {
+          "type": "string",
+          "pattern": "^[a-z_][a-z0-9_-]*$",
+          "description": "Existing Linux user who owns the session. Attach as this user."
+        },
+        "cwd": {
+          "type": "string",
+          "pattern": "^/",
+          "description": "Existing absolute directory on the target host. Inherits from window/session, then defaults to the user home. No ~ or variable expansion."
+        },
+        "vpn_unit": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[a-zA-Z0-9_@.:-]+\\.service$",
+          "description": "Optional real systemd VPN service. Orders startup but does not prove connectivity; use ready_tcp for readiness."
+        },
+        "ready_tcp": {
+          "$ref": "#/definitions/readiness"
+        },
+        "windows": {
+          "type": "array",
+          "description": "Named windows/tabs; at least one is required.",
+          "items": {
+            "$ref": "#/definitions/window"
+          },
+          "minItems": 1
+        }
+      },
+      "required": [
+        "name",
+        "user",
+        "windows"
+      ]
+    },
+    "httpProbe": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "description": "Unique label for this health probe."
+        },
+        "url": {
+          "type": "string",
+          "pattern": "^https?://[^\\s/]+[^\\s]*$",
+          "description": "HTTP or HTTPS health endpoint reachable from the server."
+        },
+        "status": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 599,
+          "default": 200,
+          "description": "Expected HTTP response status."
+        }
+      },
+      "required": [
+        "name",
+        "url"
+      ]
+    },
+    "dockerContainer": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "\\S",
+          "title": "Container name"
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "\\S"
+            },
+            "require_healthy": {
+              "type": "boolean",
+              "default": false,
+              "description": "Require Docker HEALTHCHECK to report healthy."
+            }
+          },
+          "required": [
+            "name"
+          ]
+        }
+      ]
+    },
+    "services": {
+      "type": "array",
+      "description": "Explicit systemd service allowlist. Setup enables these services; recovery starts them.",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "\\S"
+      },
+      "uniqueItems": true
+    },
+    "docker": {
+      "type": "array",
+      "description": "Existing Docker containers to monitor. Containers are not created or updated.",
+      "items": {
+        "$ref": "#/definitions/dockerContainer"
+      }
+    },
+    "tcp": {
+      "type": "array",
+      "description": "TCP application health probes.",
+      "items": {
+        "$ref": "#/definitions/tcpProbe"
+      }
+    },
+    "http": {
+      "type": "array",
+      "description": "HTTP application health probes.",
+      "items": {
+        "$ref": "#/definitions/httpProbe"
+      }
+    },
+    "tmux": {
+      "type": "array",
+      "description": "Persistent tmux sessions started by setup and restored at boot or during recovery.",
+      "items": {
+        "$ref": "#/definitions/tmuxSession"
+      }
+    },
+    "diskWarningPercent": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 100,
+      "description": "Root disk usage warning threshold in percent. Usage at 95% or more is always critical."
+    },
+    "minFreeMb": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Minimum free root disk space in MiB; also used before updates."
+    }
+  },
+  "examples": [
+    {
+      "sudoctor_tmux": [
+        {
+          "name": "apps",
+          "user": "alan",
+          "cwd": "/home/alan",
+          "windows": [
+            {
+              "name": "worker",
+              "layout": "even-horizontal",
+              "panes": [
+                {
+                  "name": "shell",
+                  "command": "exec /bin/bash"
+                },
+                {
+                  "name": "monitor",
+                  "command": "exec btop"
+                }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
