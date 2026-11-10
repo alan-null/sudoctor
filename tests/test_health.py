@@ -19,8 +19,13 @@ class OSHealthTests(unittest.TestCase):
             self.assertEqual(health.check_http('http://example.test', 401), (True, 401))
             self.assertEqual(health.check_http('http://example.test', 200), (False, 401))
 
-    def collect(self, commands, files=None):
-        with patch.object(health, 'command', side_effect=lambda args, **kwargs: commands.get(args[0])), patch.object(health, 'read_text', side_effect=lambda path: (files or {}).get(path)), patch.object(health.pathlib.Path, 'glob', return_value=[]), patch.object(health.pathlib.Path, 'stat', side_effect=OSError), patch.object(health.pathlib.Path, 'exists', return_value=False):
+    def collect(self, commands, files=None, stamps=None):
+        def stat(path):
+            if stamps and path.name in stamps:
+                return SimpleNamespace(st_mtime=stamps[path.name])
+            raise OSError
+
+        with patch.object(health, 'command', side_effect=lambda args, **kwargs: commands.get(args[0])), patch.object(health, 'read_text', side_effect=lambda path: (files or {}).get(path)), patch.object(health.pathlib.Path, 'glob', return_value=[]), patch.object(health.pathlib.Path, 'stat', autospec=True, side_effect=stat), patch.object(health.pathlib.Path, 'exists', return_value=False):
             checks, pending, reboot = health.os_update_checks(datetime.datetime(2026, 11, 4, tzinfo=datetime.timezone.utc))
         return {c['id'].split('.', 1)[1]: c for c in checks}, pending, reboot
 
@@ -29,7 +34,16 @@ class OSHealthTests(unittest.TestCase):
         self.assertIsNone(pending)
         for key in ('release', 'available', 'security', 'indexes', 'support', 'packages', 'held', 'last_operation', 'unattended', 'automatic_policy'):
             self.assertEqual(checks[key]['status'], 'unknown', key)
-        self.assertEqual(checks['restarts']['status'], 'skipped')
+        self.assertNotIn('restarts', checks)
+
+    def test_apt_index_freshness_accepts_periodic_and_success_stamps(self):
+        recent = datetime.datetime(2026, 11, 3, tzinfo=datetime.timezone.utc).timestamp()
+        old = datetime.datetime(2026, 10, 20, tzinfo=datetime.timezone.utc).timestamp()
+        checks, _, _ = self.collect({}, stamps={'update-stamp': recent})
+        self.assertEqual(checks['indexes']['status'], 'ok')
+        self.assertEqual(checks['indexes']['value'], '2026-11-03T00:00:00+00:00')
+        checks, _, _ = self.collect({}, stamps={'update-success-stamp': old, 'update-stamp': recent})
+        self.assertEqual(checks['indexes']['value'], '2026-11-03T00:00:00+00:00')
 
     def test_cached_candidates_holds_and_incomplete_packages(self):
         def result(stdout='', code=0):

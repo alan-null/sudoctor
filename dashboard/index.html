@@ -73,6 +73,7 @@ function renderModules(report) {
   const categories = new Map();
   for (const check of Array.isArray(report.checks) ? report.checks : []) {
     if (!check || typeof check !== 'object') continue;
+    if (check.id === 'os_updates.restarts') continue;
     const category = check.category || 'other';
     if (!categories.has(category)) categories.set(category, []);
     categories.get(category).push(check);
@@ -214,8 +215,7 @@ function showDemo() {
       check('indexes','APT index freshness',null,scenario.updates == null ? 'Last recorded successful index refresh 15 days ago' : 'Last recorded successful index refresh 0.2 days ago',scenario.updates == null ? 'warning' : 'ok'),
       check('reboot','Pending reboot',scenario.reboot,scenario.reboot ? 'Reboot required to finish updates' : 'No reboot-required marker',scenario.reboot ? 'warning' : 'ok'),
       check('support','Standard OS support',scenario.support,scenario.support ? `Standard support ends ${scenario.support}` : 'No local lifecycle data available',scenario.support ? 'ok' : 'unknown'),
-      check('packages','Package configuration',false,'No incomplete package states reported by dpkg'),
-      check('restarts','Pending service restarts',null,'Not collected. Requires an optional restart inspection tool.','skipped')
+      check('packages','Package configuration',false,'No incomplete package states reported by dpkg')
     ];
     const data = {demo:true, hostname:scenario.name, timestamp_utc:new Date(now - day * 86400000).toISOString(), status:scenario.status,
       uptime_hours:120 - day * 24, load_average:[0.3,0.2,0.1], memory_mb:{MemTotal:8192,MemAvailable:6000-day*100}, root_disk_used_percent:42-day*2,

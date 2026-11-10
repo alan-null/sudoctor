@@ -137,13 +137,19 @@ def os_update_checks(now=None):
     add('security', 'Security update candidates', security,
         f'{security} candidates from security suites. Cached suite names only; not a vulnerability scan.' if security is not None else 'Security candidates unavailable',
         'unknown' if security is None else 'warning' if security else 'ok')
-    stamp = pathlib.Path('/var/lib/apt/periodic/update-success-stamp')
-    try:
-        updated = datetime.datetime.fromtimestamp(stamp.stat().st_mtime, datetime.timezone.utc)
+    stamps = ('update-success-stamp', 'update-stamp')
+    timestamps = []
+    for name in stamps:
+        try:
+            timestamps.append((pathlib.Path('/var/lib/apt/periodic') / name).stat().st_mtime)
+        except OSError:
+            pass
+    if timestamps:
+        updated = datetime.datetime.fromtimestamp(max(timestamps), datetime.timezone.utc)
         age = (now - updated).total_seconds() / 86400
         add('indexes', 'APT index freshness', updated.isoformat(),
             f'Last recorded successful index refresh {age:.1f} days ago', 'warning' if age > 7 or age < 0 else 'ok')
-    except OSError:
+    else:
         add('indexes', 'APT index freshness', None, 'No successful refresh timestamp. Update counts may be stale.', 'unknown')
 
     audit = command(['dpkg', '--audit'])
@@ -183,7 +189,6 @@ def os_update_checks(now=None):
     add('automatic_policy', 'Automatic APT update policy', policy or None,
         ', '.join(key + '=' + value for key, value in sorted(policy.items())) + '. Timer execution is not verified.'
         if policy else 'No explicit periodic update policy could be read. Effective scheduling is unknown.', 'ok' if policy else 'unknown')
-    add('restarts', 'Pending service restarts', None, 'Not collected. Requires an optional restart inspection tool.', 'skipped')
     return checks, pending, reboot
 
 
