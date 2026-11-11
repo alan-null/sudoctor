@@ -2,10 +2,9 @@
 - name: Collect remote health reports
   hosts: servers
   gather_facts: false
-  become: true
   serial: 1
   tasks:
-    - name: Collect health as JSON
+    - name: Collect health as JSON using the setup-installed restricted sudo rule
       ansible.builtin.command:
         argv: [sudo, -n, /usr/bin/python3, /usr/local/libexec/sudoctor/sudoctor-health.py, /etc/sudoctor/health.json]
       changed_when: false

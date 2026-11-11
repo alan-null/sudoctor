@@ -54,6 +54,23 @@
         owner: root
         group: root
         mode: '0644'
+    - name: Identify the SSH account for scheduled health checks
+      ansible.builtin.command: id -un
+      become: false
+      changed_when: false
+      register: sudoctor_ssh_user
+    - name: Validate SSH account name for sudoers rule
+      ansible.builtin.assert:
+        that: sudoctor_ssh_user.stdout is match('^[a-zA-Z_][a-zA-Z0-9_-]*[$]?$')
+        fail_msg: 'SSH account name is not safe to add to a sudoers rule.'
+    - name: Allow the SSH account to run only the health collector without a password
+      ansible.builtin.copy:
+        dest: /etc/sudoers.d/sudoctor-health
+        content: "{{ sudoctor_ssh_user.stdout }} ALL=(root) NOPASSWD: /usr/bin/python3 /usr/local/libexec/sudoctor/sudoctor-health.py /etc/sudoctor/health.json\n"
+        owner: root
+        group: root
+        mode: '0440'
+        validate: 'visudo -cf %s'
     - name: Install tmux restorer
       ansible.builtin.copy:
         src: ../scripts/sudoctor-tmux.py
