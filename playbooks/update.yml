@@ -49,7 +49,7 @@
         seconds: 5
     - name: Verify complete health after updates
       ansible.builtin.command:
-        argv: [python3, /usr/local/libexec/sudoctor-health.py, /etc/sudoctor/health.json, --wait, "180"]
+        argv: [python3, /usr/local/libexec/sudoctor/sudoctor-health.py, /etc/sudoctor/health.json, --wait, "180"]
       changed_when: false
       register: health_raw
     - name: Store health results

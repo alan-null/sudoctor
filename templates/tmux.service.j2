@@ -9,7 +9,7 @@ Type=oneshot
 # Leave the detached tmux server running after the restorer exits.
 KillMode=process
 User={{ item.user }}
-ExecStart=/usr/local/libexec/sudoctor-tmux.py /etc/sudoctor/tmux/{{ item.name }}.json
+ExecStart=/usr/local/libexec/sudoctor/sudoctor-tmux.py /etc/sudoctor/tmux/{{ item.name }}.json
 TimeoutStartSec=300
 Restart=on-failure
 RestartSec=30

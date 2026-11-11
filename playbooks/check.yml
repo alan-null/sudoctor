@@ -7,7 +7,7 @@
   tasks:
     - name: Collect health as JSON
       ansible.builtin.command:
-        argv: [python3, /usr/local/libexec/sudoctor-health.py, /etc/sudoctor/health.json]
+        argv: [sudo, -n, /usr/bin/python3, /usr/local/libexec/sudoctor/sudoctor-health.py, /etc/sudoctor/health.json]
       changed_when: false
       register: health_raw
     - name: Read health

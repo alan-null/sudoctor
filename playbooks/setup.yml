@@ -26,9 +26,9 @@
         state: present
         lock_timeout: 120
       when: sudoctor_tmux | length > 0
-    - name: Ensure sudoctor scripts directory exists
+    - name: Ensure sudoctor libexec directory exists
       ansible.builtin.file:
-        path: /usr/local/libexec
+        path: /usr/local/libexec/sudoctor
         state: directory
         owner: root
         group: root
@@ -36,7 +36,7 @@
     - name: Install collector
       ansible.builtin.copy:
         src: ../scripts/sudoctor-health.py
-        dest: /usr/local/libexec/sudoctor-health.py
+        dest: /usr/local/libexec/sudoctor/sudoctor-health.py
         owner: root
         group: root
         mode: '0755'
@@ -57,13 +57,20 @@
     - name: Install tmux restorer
       ansible.builtin.copy:
         src: ../scripts/sudoctor-tmux.py
-        dest: /usr/local/libexec/sudoctor-tmux.py
+        dest: /usr/local/libexec/sudoctor/sudoctor-tmux.py
         owner: root
         group: root
         mode: '0755'
+    - name: Remove legacy helper locations
+      ansible.builtin.file:
+        path: '{{ item }}'
+        state: absent
+      loop:
+        - /usr/local/libexec/sudoctor-health.py
+        - /usr/local/libexec/sudoctor-tmux.py
     - name: Install tmux boot configs
       ansible.builtin.copy:
-        validate: '/usr/local/libexec/sudoctor-tmux.py --validate %s'
+        validate: '/usr/local/libexec/sudoctor/sudoctor-tmux.py --validate %s'
         dest: '/etc/sudoctor/tmux/{{ item.name }}.json'
         content: "{{ item | to_nice_json }}\n"
         owner: root

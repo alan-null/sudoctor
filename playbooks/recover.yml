@@ -16,7 +16,7 @@
       loop: '{{ sudoctor_tmux }}'
     - name: Check health
       ansible.builtin.command:
-        argv: [python3, /usr/local/libexec/sudoctor-health.py, /etc/sudoctor/health.json]
+        argv: [python3, /usr/local/libexec/sudoctor/sudoctor-health.py, /etc/sudoctor/health.json]
       changed_when: false
       register: health_raw
     - name: Save report
