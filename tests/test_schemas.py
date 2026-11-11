@@ -43,7 +43,7 @@ class Schemas(unittest.TestCase):
                     config = yaml.safe_load(path.read_text())
                     self.valid(config)
                     merged = {**defaults, **config}
-                    health = {key: merged['sudoctor_' + key] for key in ('services', 'docker', 'tcp', 'http', 'tmux', 'disk_warning_percent', 'min_free_mb')}
+                    health = {key: merged['sudoctor_' + key] for key in ('services', 'docker', 'tcp', 'http', 'tmux', 'disk_warning_percent', 'min_free_mb', 'security')}
                     self.valid(health, 'health.schema.json')
                     for session in merged['sudoctor_tmux']:
                         self.valid(session, 'tmux.schema.json')
@@ -52,6 +52,7 @@ class Schemas(unittest.TestCase):
         self.valid({})
         self.valid({'ansible_user': 'alan', 'custom_app_dir': '/srv/app', 'sudoctor_update_enabled': True})
         self.valid({'sudoctor_docker': ['worker', {'name': 'api', 'require_healthy': True}]})
+        self.valid({'sudoctor_security': {'ssh': {'context': {'user': 'alice', 'addr': '192.0.2.1'}}, 'allowed_listeners': ['127.0.0.1:22'], 'certificates': [{'name': 'api', 'host': 'api.example.test', 'warning_days': 14}]}})
 
     def test_schema_examples(self):
         for example in self.schemas['inventory.schema.json']['examples']:
@@ -68,6 +69,8 @@ class Schemas(unittest.TestCase):
             {'sudoctor_tcp': [{'name': 'api', 'host': 'localhost', 'port': 65536}]},
             {'sudoctor_http': [{'name': 'api', 'url': 'ftp://localhost', 'status': 200}]},
             {'sudoctor_http': [{'name': 'api', 'url': 'http://localhost', 'status': 999}]},
+            {'sudoctor_security': {'firewall': {'backend': 'ufw'}}},
+            {'sudoctor_security': {'certificates': [{'name': 'api'}]}},
         ):
             with self.subTest(config=config):
                 self.invalid(config)

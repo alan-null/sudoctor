@@ -65,6 +65,15 @@ Configuration keys:
 sudoctor_update_enabled: true  # explicit opt-in to APT changes
 sudoctor_auto_reboot: false     # if true, update reboots on /var/run/reboot-required
 sudoctor_services: [ssh.service, docker.service]
+sudoctor_security:
+  ssh:
+    context: {user: deploy, addr: 192.0.2.10} # optional sshd -T -C connection context
+  firewall:
+    backend: nftables                       # nftables or iptables; optional
+    expected_rules: ['tcp dport 22 accept'] # exact trimmed rule lines from the backend output
+  allowed_listeners: ['0.0.0.0:22', '[::]:22'] # exact TCP address:port entries; optional
+  certificates:
+    - {name: api, host: api.example.com, port: 443, warning_days: 30}
 sudoctor_docker:
   - name: my-container
     require_healthy: true        # requires Docker HEALTHCHECK in image/Compose
@@ -90,6 +99,10 @@ sudoctor_tmux:
 ```
 
 `command` is an intentionally **trusted shell command**. Never insert secrets or untrusted user input in inventory YAML, as the generated configuration is world-readable to allow unprivileged service startup. Keep secrets in restricted application environment files, not in command lines. Add actual application health probes; an existing tmux window is *not* proof of health.
+
+Security checks run read-only through the existing SSH collector and do not install host tools. If a probe command is unavailable or inaccessible, the related result is unknown. SSH policy uses `sshd -T`; without a context it describes global/default settings, and a configured context only evaluates that connection's `Match` rules. SSH service availability is separate from authentication policy. The failed-login check counts matching SSH unit journal messages in the last 24 hours, which can contain multiple messages per attempt. Security update candidates reuse the cached APT observation. Time synchronization uses `timedatectl` when available and falls back to `chronyc tracking`.
+
+Firewall and listener judgments require explicit policy. With no firewall backend and expected rule lines, the firewall result is unknown. Configured nftables or iptables checks require a default-drop input policy and exact expected rule lines, but do not verify rule order, forwarding, dual-stack coverage, or Azure NSGs. TCP listeners are read from `/proc/net/tcp*`; without an exact allowlist the result is unknown. Set `allowed_listeners: []` only if no TCP listeners are expected. Certificate endpoints are opt-in and use direct TLS with system trust; STARTTLS and local certificate files are not inspected. Time synchronization is reported when `timedatectl` provides evidence. CrowdSec, bouncers, Caddy, WireGuard, NetBird, and privileged-service baselines are deferred optional integrations.
 
 ### Docker restart behavior
 

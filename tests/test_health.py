@@ -77,6 +77,60 @@ class OSHealthTests(unittest.TestCase):
         self.assertEqual(run.call_args.kwargs['env']['LC_ALL'], 'C.UTF-8')
         self.assertEqual(run.call_args.kwargs['timeout'], 30)
 
+    def test_security_missing_evidence_stays_unknown(self):
+        with patch.object(health, 'command', return_value=None), patch.object(health, 'read_text', return_value=None):
+            checks = health.security_checks({}, datetime.datetime(2026, 11, 4, tzinfo=datetime.timezone.utc), [])
+        by_id = {c['id']: c for c in checks}
+        for key in ('security.ssh_passwordauthentication', 'security.ssh_permitrootlogin', 'security.ssh_service', 'security.firewall', 'security.failed_logins', 'security.listeners', 'security.time'):
+            self.assertEqual(by_id[key]['status'], 'unknown', key)
+
+    def test_security_policy_and_allowlist(self):
+        def result(stdout, code=0):
+            return SimpleNamespace(stdout=stdout, returncode=code)
+        def run(args, **kwargs):
+            if args[:2] == ['sshd', '-T']:
+                self.assertIn('user=alice', args[-1])
+                return result('passwordauthentication no\nkbdinteractiveauthentication no\npermitrootlogin prohibit-password\n')
+            if args[0] == 'nft':
+                return result('chain input {\n type filter hook input priority 0; policy drop;\n tcp dport 22 accept\n }')
+            if args[0] == 'systemctl':
+                return result('active\n')
+            if args[0] == 'journalctl':
+                return result('Failed password\nAccepted publickey\n')
+            if args[0] == 'timedatectl':
+                return result('yes\n')
+            return None
+        cfg = {'security': {'ssh': {'context': {'user': 'alice', 'addr': '192.0.2.1'}},
+                            'firewall': {'backend': 'nftables', 'expected_rules': ['tcp dport 22 accept']},
+                            'allowed_listeners': ['127.0.0.1:22']}}
+        files = {'/proc/net/tcp': 'header\n 0: 0100007F:0016 00000000:0000 0A\n', '/proc/net/tcp6': 'header\n'}
+        with patch.object(health, 'command', side_effect=run), patch.object(health, 'read_text', side_effect=lambda path: files.get(path)):
+            checks = health.security_checks(cfg, datetime.datetime(2026, 11, 4, tzinfo=datetime.timezone.utc), [])
+        by_id = {c['id']: c for c in checks}
+        self.assertEqual(by_id['security.ssh_passwordauthentication']['status'], 'ok')
+        self.assertEqual(by_id['security.ssh_permitrootlogin']['status'], 'warning')
+        self.assertEqual(by_id['security.firewall']['status'], 'ok')
+        self.assertEqual(by_id['security.listeners']['status'], 'ok')
+        self.assertEqual(by_id['security.failed_logins']['value'], 1)
+
+    def test_security_no_firewall_rule_or_listener_baseline_is_not_pass(self):
+        def result(stdout, code=0):
+            return SimpleNamespace(stdout=stdout, returncode=code)
+        with patch.object(health, 'command', side_effect=lambda args, **kwargs: result('table inet filter {}') if args[0] == 'nft' else None), patch.object(health, 'read_text', return_value='header\n'):
+            checks = health.security_checks({'security': {'firewall': {'backend': 'nftables'}}}, datetime.datetime.now(datetime.timezone.utc), [])
+        by_id = {c['id']: c for c in checks}
+        self.assertEqual(by_id['security.firewall']['status'], 'unknown')
+        self.assertEqual(by_id['security.listeners']['status'], 'unknown')
+
+    def test_chronyc_time_fallback(self):
+        def run(args, **kwargs):
+            if args[0] == 'chronyc':
+                return SimpleNamespace(stdout='Leap status     : Normal\n', returncode=0)
+            return None
+        with patch.object(health, 'command', side_effect=run), patch.object(health, 'read_text', return_value=None):
+            checks = health.security_checks({}, datetime.datetime.now(datetime.timezone.utc), [])
+        self.assertEqual(next(c for c in checks if c['id'] == 'security.time')['status'], 'ok')
+
 
 if __name__ == '__main__':
     unittest.main()

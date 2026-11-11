@@ -9,3 +9,4 @@ sudoctor_docker: []                 # containers required to be running (and hea
 sudoctor_tcp: []                    # [{name: vpn-backend, host: 10.0.0.1, port: 443}]
 sudoctor_http: []                   # [{name: app, url: http://127.0.0.1:8000/health, status: 200}]
 sudoctor_tmux: []                   # see host_vars example
+sudoctor_security: {}               # optional SSH context, firewall policy, listener allowlist, certificates

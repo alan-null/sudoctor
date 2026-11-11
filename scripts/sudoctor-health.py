@@ -8,6 +8,7 @@ import pathlib
 import re
 import shutil
 import socket
+import ssl
 import subprocess
 import sys
 import time
@@ -192,6 +193,146 @@ def os_update_checks(now=None):
     return checks, pending, reboot
 
 
+def security_checks(cfg, now, os_checks):
+    """Read bounded local evidence; policy-dependent judgments require configuration."""
+    checks = []
+
+    def add(key, label, value, message, status='unknown'):
+        checks.append({'id': 'security.' + key, 'category': 'security', 'label': label,
+                       'value': value, 'message': message, 'status': status})
+
+    security_update = next((c for c in os_checks if c['id'] == 'os_updates.security'), None)
+    if security_update:
+        add('updates', 'Security update candidates', security_update['value'],
+            security_update['message'], security_update['status'])
+
+    policy = cfg.get('security', {})
+    ssh = policy.get('ssh', {})
+    context = ssh.get('context', {})
+    args = ['sshd', '-T']
+    if context:
+        args += ['-C', ','.join(f'{key}={context[key]}' for key in ('user', 'host', 'addr', 'laddr', 'lport') if key in context)]
+    result = command(args)
+    values = dict(line.split(None, 1) for line in result.stdout.splitlines() if len(line.split(None, 1)) == 2) if result and result.returncode == 0 else {}
+    context_name = ', '.join(f'{k}={v}' for k, v in context.items()) if context else 'global/default context; Match branches may differ'
+    for key, label, bad in [('passwordauthentication', 'SSH password authentication', {'yes'}),
+                            ('kbdinteractiveauthentication', 'SSH keyboard-interactive authentication', {'yes'}),
+                            ('permitrootlogin', 'SSH root login', {'yes', 'prohibit-password', 'without-password', 'forced-commands-only'})]:
+        value = values.get(key)
+        if key == 'permitrootlogin' and value == 'yes':
+            message = f'Root can log in using any enabled SSH method. Checked {context_name}'
+        elif key == 'permitrootlogin' and value in ('prohibit-password', 'without-password'):
+            message = f'Root can log in with an SSH key. Password and keyboard-interactive login are disabled for root. Checked {context_name}'
+        elif key == 'permitrootlogin' and value == 'forced-commands-only':
+            message = f'Root can log in only with keys restricted to specific commands. Checked {context_name}'
+        elif key == 'permitrootlogin' and value == 'no':
+            message = f'Root cannot log in over SSH. Checked {context_name}'
+        else:
+            message = f'{value}; evaluated {context_name}' if value else f'Effective SSH policy unavailable; evaluated {context_name}'
+        add('ssh_' + key, label, value,
+            message,
+            'unknown' if value is None else 'warning' if value in bad else 'ok' if value == 'no' else 'unknown')
+    service = command(['systemctl', 'is-active', 'ssh.service'])
+    if service is None or service.returncode != 0:
+        service = command(['systemctl', 'is-active', 'sshd.service'])
+    add('ssh_service', 'SSH service availability', service.stdout.strip() if service else None,
+        'SSH service active' if service and service.returncode == 0 and service.stdout.strip() == 'active' else 'Service status unavailable or inactive; current SSH connection does not prove future availability',
+        'ok' if service and service.returncode == 0 and service.stdout.strip() == 'active' else 'warning' if service else 'unknown')
+
+    backend = policy.get('firewall', {}).get('backend')
+    rules = policy.get('firewall', {}).get('expected_rules', [])
+    if backend == 'nftables':
+        fw = command(['nft', 'list', 'ruleset'])
+        output = fw.stdout if fw and fw.returncode == 0 else None
+        # An exact expected rule line is stronger evidence than a service state or nonempty ruleset.
+        lines = {line.strip() for line in output.splitlines()} if output is not None else set()
+        missing = [rule for rule in rules if rule not in lines]
+        drop = bool(re.search(r'\btype filter hook input\b[^\n]*\bpolicy drop\b', output or ''))
+    elif backend == 'iptables':
+        fw = command(['iptables-save'])
+        output = fw.stdout if fw and fw.returncode == 0 else None
+        lines = {line.strip() for line in output.splitlines()} if output is not None else set()
+        missing = [rule for rule in rules if rule not in lines]
+        drop = bool(re.search(r'^:INPUT DROP ', output or '', re.MULTILINE))
+    else:
+        output, missing, drop = None, [], False
+    if not backend:
+        add('firewall', 'Guest firewall', None, 'No firewall backend and expected rules configured; Azure NSGs are outside guest observations')
+    elif output is None:
+        add('firewall', 'Guest firewall', None, f'{backend} rules unavailable; Azure NSGs are outside guest observations')
+    elif not rules:
+        add('firewall', 'Guest firewall', {'backend': backend, 'default_drop': drop},
+            'No expected rules configured; a loaded ruleset or default policy alone does not prove protection')
+    else:
+        add('firewall', 'Guest firewall', {'backend': backend, 'default_drop': drop, 'missing_rules': missing},
+            f'{backend}: {len(missing)} expected rule lines missing; input default drop={drop}. Rule ordering and reachability are not verified; Azure NSGs are outside guest observations',
+            'warning' if missing or not drop else 'ok')
+
+    since = int((now - datetime.timedelta(hours=24)).timestamp())
+    journal = command(['journalctl', '--no-pager', '--since', '@' + str(since), '-u', 'ssh.service', '-u', 'sshd.service', '-o', 'cat'], timeout=15)
+    if journal and journal.returncode == 0:
+        count = sum(bool(re.search(r'Failed password|Failed publickey|authentication failure|Invalid user', line, re.I)) for line in journal.stdout.splitlines())
+        add('failed_logins', 'Failed SSH login messages', count,
+            f'{count} matching journal messages in the last 24 hours; one attempt can produce multiple messages',
+            'warning' if count else 'ok')
+    else:
+        add('failed_logins', 'Failed SSH login messages', None, 'SSH journal unavailable for the last 24 hours')
+
+    # /proc is available on Linux even when ss/netstat are absent. These are TCP listeners only.
+    listeners = set()
+    readable = True
+    for path, family in (('/proc/net/tcp', socket.AF_INET), ('/proc/net/tcp6', socket.AF_INET6)):
+        data = read_text(path)
+        if data is None:
+            readable = False
+            continue
+        for line in data.splitlines()[1:]:
+            fields = line.split()
+            if len(fields) < 4 or fields[3] != '0A':
+                continue
+            try:
+                raw, port = fields[1].split(':')
+                address = socket.inet_ntop(family, bytes.fromhex(raw)[::-1] if family == socket.AF_INET else b''.join(bytes.fromhex(raw)[i:i+4][::-1] for i in range(0, 16, 4)))
+                listeners.add(f'[{address}]:{int(port, 16)}' if family == socket.AF_INET6 else f'{address}:{int(port, 16)}')
+            except (ValueError, OSError):
+                readable = False
+    allowed = policy.get('allowed_listeners')
+    if not readable:
+        add('listeners', 'TCP listeners', None, 'TCP listener table unavailable or malformed')
+    elif allowed is None:
+        add('listeners', 'TCP listeners', sorted(listeners), f'{len(listeners)} TCP listeners observed; no allowlist configured')
+    else:
+        unexpected = sorted(listeners - set(allowed))
+        add('listeners', 'TCP listeners', {'observed': sorted(listeners), 'unexpected': unexpected},
+            f'{len(unexpected)} listeners outside the configured exact address:port allowlist',
+            'warning' if unexpected else 'ok')
+
+    for endpoint in policy.get('certificates', []):
+        name, host, port = endpoint['name'], endpoint['host'], endpoint.get('port', 443)
+        try:
+            with socket.create_connection((host, port), timeout=5) as sock:
+                with ssl.create_default_context().wrap_socket(sock, server_hostname=host) as tls:
+                    expiry = ssl.cert_time_to_seconds(tls.getpeercert()['notAfter'])
+            days = (expiry - now.timestamp()) / 86400
+            add('certificate.' + name, f'Certificate: {name}', datetime.datetime.fromtimestamp(expiry, datetime.timezone.utc).isoformat(),
+                f'Expires in {days:.1f} days; direct TLS with system trust', 'warning' if days <= endpoint.get('warning_days', 30) else 'ok')
+        except (OSError, ValueError, KeyError, ssl.SSLError) as exc:
+            add('certificate.' + name, f'Certificate: {name}', None, f'Certificate inspection failed: {type(exc).__name__}')
+
+    clock = command(['timedatectl', 'show', '-p', 'NTPSynchronized', '--value'])
+    value = clock.stdout.strip().lower() if clock and clock.returncode == 0 else None
+    source = 'timedatectl'
+    if value not in ('yes', 'no'):
+        tracking = command(['chronyc', 'tracking'])
+        leap = re.search(r'^Leap status\s*:\s*(.+)$', tracking.stdout, re.MULTILINE | re.I) if tracking and tracking.returncode == 0 else None
+        value = leap.group(1).strip().lower() if leap else None
+        source = 'chronyc'
+    add('time', 'Time synchronization', value,
+        f'{source} reports synchronized time' if value in ('yes', 'normal') else f'{source} reports time is not synchronized' if value in ('no', 'not synchronised', 'not synchronized') else 'Time synchronization evidence unavailable',
+        'ok' if value in ('yes', 'normal') else 'warning' if value in ('no', 'not synchronised', 'not synchronized') else 'unknown')
+    return checks
+
+
 def collect(cfg):
     issues = []
     warnings = []
@@ -252,7 +393,9 @@ def collect(cfg):
             issues.append('tmux missing session/windows/panes: ' + item['name'])
 
     checks, pending, reboot = os_update_checks()
-    warnings.extend(check['label'] + ': ' + check['message'] for check in checks if check['status'] == 'warning')
+    checks.extend(security_checks(cfg, datetime.datetime.now(datetime.timezone.utc), checks))
+    warnings.extend(check['label'] + ': ' + check['message'] for check in checks
+                    if check['status'] == 'warning' and check['id'] != 'security.updates')
     return {
         'timestamp_utc': datetime.datetime.now(datetime.timezone.utc).isoformat(),
         'hostname': socket.gethostname(),

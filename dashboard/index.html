@@ -78,14 +78,18 @@ function renderModules(report) {
     if (!categories.has(category)) categories.set(category, []);
     categories.get(category).push(check);
   }
+  if (!categories.size) return '';
+  for (const category of ['os_updates', 'security']) if (!categories.has(category)) categories.set(category, []);
   const titles = {os_updates:'Operating system and update health', security:'Security health'};
-  return `<div class="modules">${[...categories].map(([category, checks]) => {
+  const ordered = ['os_updates', 'security', ...[...categories.keys()].filter(category => !['os_updates', 'security'].includes(category))];
+  return `<div class="modules">${ordered.map(category => {
+    const checks = categories.get(category);
     const states = checks.map(c => c.status);
     const state = ['critical','warning','unknown','ok','skipped'].find(s => states.includes(s)) || 'unknown';
     return `<section class="module"><header><h4>${text(titles[category] || category)}</h4><span class="badge ${state}">${state}</span></header><div class="module-checks">${checks.map(c => {
       const status = ['ok','warning','critical','unknown','skipped'].includes(c.status) ? c.status : 'unknown';
-      return `<div class="module-row"><span class="state ${status}">${status === 'ok' ? 'Passing' : text(status)}</span><strong>${text(c.label || c.id)}</strong><p>${text(c.message)}</p></div>`;
-    }).join('')}</div></section>`;
+      return `<div class="module-row"><span class="state ${status}">${status === 'ok' ? 'Passing' : text(status)}</span><strong>${text(c.label || c.id)}</strong><div class="module-description"><p>${text(c.message)}</p>${c.value != null && typeof c.value === 'object' ? `<details><summary>ⓘ More info</summary><pre>${text(JSON.stringify(c.value, null, 2))}</pre></details>` : ''}</div></div>`;
+    }).join('') || `<p class="module-empty">${category === 'security' ? 'Security checks were not collected in this snapshot.' : 'Operating system and update checks were not collected in this snapshot.'}</p>`}</div></section>`;
   }).join('')}</div>`;
 }
 function renderReport({name, alias, data:r}, history = '', historyHostIndex = '', showLive = true) {
@@ -217,10 +221,24 @@ function showDemo() {
       check('support','Standard OS support',scenario.support,scenario.support ? `Standard support ends ${scenario.support}` : 'No local lifecycle data available',scenario.support ? 'ok' : 'unknown'),
       check('packages','Package configuration',false,'No incomplete package states reported by dpkg')
     ];
+    const securityCheck = (id, label, value, message, status) => ({id:`security.${id}`,category:'security',label,value,message,status});
+    const good = scenario.name === 'onprem-worker-demo', unknown = scenario.name === 'azure-legacy-demo';
+    checks.push(
+      securityCheck('updates','Security update candidates',scenario.security,scenario.security == null ? 'Security candidates unavailable' : `${scenario.security} candidates from security suites. Cached suite names only.`,scenario.security == null ? 'unknown' : scenario.security ? 'warning' : 'ok'),
+      securityCheck('ssh_passwordauthentication','SSH password authentication',unknown ? null : good ? 'no' : 'yes',unknown ? 'Effective SSH policy unavailable' : `Evaluated global/default context: ${good ? 'no' : 'yes'}`,unknown ? 'unknown' : good ? 'ok' : 'warning'),
+      securityCheck('ssh_kbdinteractiveauthentication','SSH keyboard-interactive authentication',unknown ? null : 'no',unknown ? 'Effective SSH policy unavailable' : 'Evaluated global/default context: no',unknown ? 'unknown' : 'ok'),
+      securityCheck('ssh_permitrootlogin','SSH root login',good ? 'no' : 'prohibit-password',good ? 'Root cannot log in over SSH. Checked global/default context; Match rules may differ.' : 'Root can log in with an SSH key. Password and keyboard-interactive login are disabled for root. Checked global/default context; Match rules may differ.',good ? 'ok' : 'warning'),
+      securityCheck('ssh_service','SSH service availability','active','SSH service active','ok'),
+      securityCheck('firewall','Guest firewall',good ? {backend:'nftables',default_drop:true,missing_rules:[]} : null,good ? 'Expected rules present; input default drop. Rule ordering is not verified.' : 'No firewall policy configured; Azure NSGs are outside guest observations',good ? 'ok' : 'unknown'),
+      securityCheck('listeners','TCP listeners',good ? {observed:['127.0.0.1:8080'],unexpected:[]} : ['0.0.0.0:22'],good ? 'No listeners outside the configured allowlist' : 'No allowlist configured',good ? 'ok' : 'unknown'),
+      securityCheck('failed_logins','Failed SSH login messages',unknown ? null : good ? 0 : 2,unknown ? 'SSH journal unavailable' : `${good ? 0 : 2} matching messages in the last 24 hours`,unknown ? 'unknown' : good ? 'ok' : 'warning'),
+      securityCheck('time','Time synchronization',unknown ? null : 'yes',unknown ? 'Time synchronization evidence unavailable' : 'System reports synchronized time',unknown ? 'unknown' : 'ok'),
+      securityCheck('certificate.api','Certificate: api',good ? '2027-06-01T00:00:00Z' : null,good ? 'Expires in 202 days; direct TLS with system trust' : 'Certificate endpoint not configured',good ? 'ok' : 'skipped')
+    );
     const data = {demo:true, hostname:scenario.name, timestamp_utc:new Date(now - day * 86400000).toISOString(), status:scenario.status,
       uptime_hours:120 - day * 24, load_average:[0.3,0.2,0.1], memory_mb:{MemTotal:8192,MemAvailable:6000-day*100}, root_disk_used_percent:42-day*2,
       root_disk_free_mb:23000, pending_updates:count, reboot_required:scenario.reboot, checks, issues:[],
-      warnings:checks.filter(c => c.status === 'warning').map(c => `${c.label}: ${c.message}`), details:{services:{'ssh.service':true}}};
+      warnings:checks.filter(c => c.status === 'warning' && c.id !== 'security.updates').map(c => `${c.label}: ${c.message}`), details:{services:{'ssh.service':true}}};
     reports.push({name:`${scenario.name}-${day}.json`,alias:scenario.name,data});
   }
   show(reports, [demoDefault ? 'Demo mode. Fictional data only.' : 'Demo mode. Fictional data only. Refresh returns to your reports.'], 'Demo reports · 3 fictional hosts · 4 snapshots each');

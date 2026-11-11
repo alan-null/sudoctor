@@ -20,13 +20,13 @@
           - '{{ inventory_hostname }}: {{ health.status }} | uptime={{ health.uptime_hours }}h | updates={{ health.pending_updates }} | reboot required={{ health.reboot_required }}'
           - 'Issues: {{ health.issues | join("; ") if health.issues else "none" }}'
           - 'Warnings: {{ health.warnings | join("; ") if health.warnings else "none" }}'
-    - name: Display operating system and update checks
+    - name: Display operating system, update, and security checks
       ansible.builtin.debug:
         msg: '{{ item.label }} [{{ item.status }}]: {{ item.message }}'
       loop: '{{ health.checks | default([]) }}'
       loop_control:
         label: '{{ item.id }}'
-      when: item.category == 'os_updates'
+      when: item.category in ['os_updates', 'security']
     - name: Fail on critical health problems
       ansible.builtin.assert:
         that: health.status != 'critical'

@@ -20,6 +20,9 @@
     "tmux": {
       "$ref": "inventory.schema.json#/definitions/tmux"
     },
+    "security": {
+      "$ref": "inventory.schema.json#/definitions/security"
+    },
     "disk_warning_percent": {
       "$ref": "inventory.schema.json#/definitions/diskWarningPercent"
     },

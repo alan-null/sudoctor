@@ -50,7 +50,7 @@
     - name: Install health expectations
       ansible.builtin.copy:
         dest: /etc/sudoctor/health.json
-        content: "{{ {'services': sudoctor_services, 'docker': sudoctor_docker, 'tcp': sudoctor_tcp, 'http': sudoctor_http, 'tmux': sudoctor_tmux, 'disk_warning_percent': sudoctor_disk_warning_percent, 'min_free_mb': sudoctor_min_free_mb} | to_nice_json }}\n"
+        content: "{{ {'services': sudoctor_services, 'docker': sudoctor_docker, 'tcp': sudoctor_tcp, 'http': sudoctor_http, 'tmux': sudoctor_tmux, 'disk_warning_percent': sudoctor_disk_warning_percent, 'min_free_mb': sudoctor_min_free_mb, 'security': sudoctor_security | default({})} | to_nice_json }}\n"
         owner: root
         group: root
         mode: '0644'
