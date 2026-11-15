@@ -17,6 +17,8 @@ The optional Docker deployment adds scheduled checks and a dashboard
 
 For scheduled checks and the dashboard using Docker Compose, see the [Docker deployment guide](docker/README.md). Docker configuration and deployment files are contained in [docker/](docker/).
 
+For diagrams of SSH accounts, sudo rules, and how reports reach the dashboard, see [How auth and connections work](docs/auth-and-connections.md).
+
 ## 1. Configure hosts
 
 Keep personal configuration outside the checkout. The default inventory is `${XDG_CONFIG_HOME:-$HOME/.config}/sudoctor/inventory/hosts.ini`. Create it and copy the shared defaults:
