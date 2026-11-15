@@ -94,6 +94,9 @@ class ScheduledTests(unittest.TestCase):
         with urllib.request.urlopen(base + '/style.css') as response:
             self.assertEqual(response.headers.get_content_type(), 'text/css')
             self.assertIn(b'--green:#2bea5b', response.read())
+        for path, content_type in (('/favicon.ico', 'image/x-icon'), ('/assets/favicon-32.png', 'image/png'), ('/assets/apple-touch-icon.png', 'image/png')):
+            with urllib.request.urlopen(base + path) as response:
+                self.assertEqual(response.headers.get_content_type(), content_type)
         for path in ('/state.json', '/inventory/hosts.ini', '/%2e%2e/state.json'):
             with self.assertRaises(urllib.error.HTTPError) as error:
                 urllib.request.urlopen(base + path)
