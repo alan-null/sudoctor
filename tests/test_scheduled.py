@@ -52,6 +52,24 @@ class ScheduledTests(unittest.TestCase):
         self.assertEqual(state['hosts']['c']['report']['status'], 'ok')
         self.assertEqual(len(list((scheduled.STATE / 'reports' / 'b').iterdir())), 1)
 
+    def test_check_account_uses_password_without_batch_mode(self):
+        secret = Path(self.temp.name) / 'pass'
+        secret.write_text('p{{ x }}"\n')
+        hostvars = {'pi': {'ansible_user': 'alan', 'sudoctor_check_user': 'sudoctor', 'sudoctor_check_key_file': '/k', 'sudoctor_check_password_file': str(secret)}}
+        seen = {}
+        def command(cmd, timeout, env):
+            if cmd[0] == 'ansible-inventory':
+                return 0, json.dumps({'servers': {'hosts': ['pi', 'plain']}, '_meta': {'hostvars': hostvars}})
+            args = env.get('SUDOCTOR_BECOME_ARGS', '')
+            seen[cmd[-1]] = (env['ANSIBLE_SSH_ARGS'], args, Path(args[4:]).read_text() if args else '')
+            return 1, ''
+        with patch.object(scheduled, 'run_command', command):
+            scheduled.sweep()
+        self.assertIn('BatchMode=yes', seen['plain'][0])
+        self.assertEqual(seen['plain'][1], '')
+        self.assertNotIn('BatchMode', seen['pi'][0])
+        self.assertEqual(seen['pi'][2], 'ansible_user: "sudoctor"\nansible_ssh_private_key_file: "/k"\nansible_password: !unsafe "p{{ x }}\\""\n')
+
     def test_invalid_inventory_and_interrupted_attempt(self):
         scheduled.save_state({'hosts': {'a': {'attempt': {'outcome': 'running'}}}})
         with patch.object(scheduled, 'run_command', return_value=(0, '{}')):

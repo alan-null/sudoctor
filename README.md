@@ -196,7 +196,7 @@ OS and update checks appear in a separate dashboard module. Reports keep their e
 - **No zero-downtime promise:** OS upgrades can restart services even without a reboot.
 - **Not an incident controller:** failed checks cause a nonzero command exit; safe recovery doesn't auto-restart Docker containers or change VPN/firewall config.
 - **No automatic rollback:** capture backups and use snapshots for production systems.
-- **Restricted scheduled checks:** setup grants the SSH account passwordless sudo for only the fixed, root-owned health collector command. Maintenance actions still require normal sudo authentication.
+- **Restricted scheduled checks:** setup grants the SSH account passwordless sudo for only the fixed, root-owned health collector command. Maintenance actions still require normal sudo authentication. For hosts that require a key and password, Docker checks can use a dedicated account instead (see the [Docker guide](docker/README.md#hosts-that-require-an-ssh-key-and-password)).
 - **Network-online is not a tunnel readiness test:** use the `ready_tcp` probe for VPN-dependent tmux apps.
 - **Don't configure identical simultaneous APT schedules:** coordinate with `unattended-upgrades` and host timers to prevent update overlaps.
 - The default health check may report warnings for a pending reboot or high disk usage; only critical checks return a failing playbook status.

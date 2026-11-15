@@ -79,6 +79,27 @@ def run_command(command, timeout, env):
         return code, text
 
 
+def check_account(variables, directory, env):
+    """Log in as the host's sudoctor_check_user, if configured."""
+    user = variables.get('sudoctor_check_user')
+    if not user:
+        return
+    if not re.fullmatch(r'[a-z_][a-z0-9_-]*', str(user)):
+        raise ValueError('Invalid sudoctor_check_user')
+    lines = ['ansible_user: ' + json.dumps(user)]
+    if variables.get('sudoctor_check_key_file'):
+        lines.append('ansible_ssh_private_key_file: ' + json.dumps(str(variables['sudoctor_check_key_file'])))
+    if variables.get('sudoctor_check_password_file'):
+        password = Path(variables['sudoctor_check_password_file']).read_text().rstrip('\n')
+        lines.append('ansible_password: !unsafe ' + json.dumps(password))
+        # BatchMode=yes would stop sshpass from answering the password prompt.
+        env['ANSIBLE_SSH_ARGS'] = '-o StrictHostKeyChecking=yes -o ConnectTimeout=15'
+    path = Path(directory, 'check-account.yml')
+    path.write_text('\n'.join(lines) + '\n')
+    # Extra vars outrank inventory, so setup and manual runs keep the normal SSH account.
+    env['SUDOCTOR_BECOME_ARGS'] = (env.get('SUDOCTOR_BECOME_ARGS', '') + ' -e @' + str(path)).strip()
+
+
 def sweep():
     STATE.mkdir(mode=0o700, parents=True, exist_ok=True)
     with (STATE / 'sweep.lock').open('w') as lock:
@@ -101,7 +122,9 @@ def sweep():
             code, output = run_command(['ansible-inventory', '--inventory', str(inventory), '--list'], TIMEOUT, env)
             if code != 0:
                 raise ValueError('Inventory could not be loaded')
-            hosts = inventory_hosts(json.loads(output))
+            data = json.loads(output)
+            hosts = inventory_hosts(data)
+            hostvars = data.get('_meta', {}).get('hostvars', {})
         except (ValueError, OSError, json.JSONDecodeError):
             state['error'] = 'Inventory could not be loaded or contains no valid hosts'
             save_state(state)
@@ -115,9 +138,10 @@ def sweep():
             host['attempt'] = attempt
             save_state(state)
             with tempfile.TemporaryDirectory(prefix='sudoctor-') as directory:
-                env['SUDOCTOR_REPORT_DIR'] = directory
+                host_env = dict(env, SUDOCTOR_REPORT_DIR=directory)
                 try:
-                    code, output = run_command([str(ROOT / 'scripts/sudoctor'), 'check', name], TIMEOUT, env)
+                    check_account(hostvars.get(name, {}), directory, host_env)
+                    code, output = run_command([str(ROOT / 'scripts/sudoctor'), 'check', name], TIMEOUT, host_env)
                     report_path = Path(directory) / (name + '.json')
                     report = json.loads(report_path.read_text()) if report_path.is_file() else None
                     valid = isinstance(report, dict) and report.get('status') in ('ok', 'warning', 'critical') and isinstance(report.get('timestamp_utc'), str)

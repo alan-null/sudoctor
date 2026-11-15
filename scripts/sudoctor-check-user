@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Create the key and password for a host's dedicated check account.
+# The key goes in the scheduler's SSH directory; the password goes there too unless a secrets directory
+# (mounted read-only at /run/secrets in the scheduler) is given.
+set -euo pipefail
+[[ $# -eq 2 || $# -eq 3 ]] || { echo 'Usage: sudoctor-check-user <inventory-alias> <scheduler-ssh-dir> [secrets-dir]' >&2; exit 2; }
+alias="$1"; ssh_dir="$2"; pass_dir="${3:-$2}"
+[[ "$alias" =~ ^[A-Za-z0-9_.-]+$ ]] || { echo 'Invalid inventory alias' >&2; exit 2; }
+for dir in "$ssh_dir" "$pass_dir"; do [[ -d "$dir" ]] || { echo "Not a directory: $dir" >&2; exit 2; }; done
+name="sudoctor-check@$alias"
+[[ ! -e "$ssh_dir/$name" && ! -e "$pass_dir/$name.pass" ]] || { echo "Refusing to overwrite existing $name files" >&2; exit 1; }
+container_pass="/root/.ssh/$name.pass"
+[[ $# -eq 2 ]] || container_pass="/run/secrets/$name.pass"
+umask 077
+ssh-keygen -q -t ed25519 -N '' -C "$name" -f "$ssh_dir/$name"
+python3 -c 'import secrets; print(secrets.token_urlsafe(32))' > "$pass_dir/$name.pass"
+cat <<MSG
+Created $ssh_dir/$name{,.pub} and $pass_dir/$name.pass. Add to host_vars/$alias.yml (paths as seen inside the scheduler):
+
+sudoctor_check_user: sudoctor
+sudoctor_check_key_file: /root/.ssh/$name
+sudoctor_check_password_file: $container_pass
+
+Then run setup for $alias once with the normal admin account.
+MSG

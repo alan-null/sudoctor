@@ -63,10 +63,46 @@
       ansible.builtin.assert:
         that: sudoctor_ssh_user.stdout is match('^[a-zA-Z_][a-zA-Z0-9_-]*[$]?$')
         fail_msg: 'SSH account name is not safe to add to a sudoers rule.'
-    - name: Allow the SSH account to run only the health collector without a password
+    - name: Configure the dedicated check account
+      when: sudoctor_check_user is defined
+      block:
+        - name: Validate check account settings
+          ansible.builtin.assert:
+            that:
+              - sudoctor_check_user is match('^[a-z_][a-z0-9_-]*$')
+              - sudoctor_check_user not in [sudoctor_ssh_user.stdout, 'root']
+              - sudoctor_check_key_file is defined
+              - sudoctor_check_password_file is not defined or '\n' not in lookup('file', sudoctor_check_password_file)
+              - lookup('file', sudoctor_check_key_file ~ '.pub') is match('^[a-z0-9@.-]+ [A-Za-z0-9+/=]+( [^\n]*)?$')
+              - sudoctor_check_from | default('x') is match('^[0-9A-Za-z.:/,*?!_-]+$')
+            fail_msg: 'Invalid sudoctor_check_* settings; see the Docker guide.'
+        - name: Create the check account without extra groups
+          ansible.builtin.user:
+            name: '{{ sudoctor_check_user }}'
+            shell: /bin/sh
+          register: sudoctor_check_account
+        - name: Set the check account password
+          ansible.builtin.command:
+            cmd: chpasswd
+            stdin: "{{ sudoctor_check_user }}:{{ lookup('file', sudoctor_check_password_file) }}"
+          no_log: true
+          when: sudoctor_check_password_file is defined
+        - name: Ensure the check account SSH directory exists
+          ansible.builtin.file:
+            path: '{{ sudoctor_check_account.home }}/.ssh'
+            state: directory
+            owner: '{{ sudoctor_check_user }}'
+            mode: '0700'
+        - name: Authorize only the check key, without forwarding or a terminal
+          ansible.builtin.copy:
+            dest: '{{ sudoctor_check_account.home }}/.ssh/authorized_keys'
+            content: "restrict{{ (',from=\"' ~ sudoctor_check_from ~ '\"') if sudoctor_check_from is defined else '' }} {{ lookup('file', sudoctor_check_key_file ~ '.pub') }}\n"
+            owner: '{{ sudoctor_check_user }}'
+            mode: '0600'
+    - name: Allow the SSH and check accounts to run only the health collector without a password
       ansible.builtin.copy:
         dest: /etc/sudoers.d/sudoctor-health
-        content: "{{ sudoctor_ssh_user.stdout }} ALL=(root) NOPASSWD: /usr/bin/python3 /usr/local/libexec/sudoctor/sudoctor-health.py /etc/sudoctor/health.json\n"
+        content: "{{ ([sudoctor_ssh_user.stdout] + ([sudoctor_check_user] if sudoctor_check_user is defined else [])) | join(',') }} ALL=(root) NOPASSWD: /usr/bin/python3 /usr/local/libexec/sudoctor/sudoctor-health.py /etc/sudoctor/health.json\n"
         owner: root
         group: root
         mode: '0440'

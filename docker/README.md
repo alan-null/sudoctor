@@ -47,6 +47,30 @@ For a weekly schedule, set `SUDOCTOR_STALE_SECONDS=691200` (eight days) or anoth
 
 Run the following Compose commands from this directory. Run an extra sweep with `docker compose exec scheduler /app/scripts/sudoctor-scheduled.py sweep`. Stop scheduled checks with `docker compose stop scheduler`; the dashboard remains available. Restart them with `docker compose start scheduler`. The dashboard loads archived scheduled reports from the state volume for snapshot selection and history charts, and shows a failed or stale attempt separately from the last report. Its `/health` endpoint reports whether the dashboard process responds, not whether scheduled checks are healthy.
 
+### Hosts that require an SSH key and password
+
+If a host's `sshd` requires `AuthenticationMethods publickey,password`, scheduled checks can log in as a dedicated check account instead of your admin account. That account has no extra groups, a key marked `restrict` (no forwarding or terminal), and sudo rights for only the health collector. Hosts without these settings keep working as before.
+
+1. Create the check account's key and password with the helper in the scheduler image. The service's own mounts are read-only, so the helper writes through extra writable mounts. Run this from the Compose directory:
+
+   ```bash
+   docker compose run --rm --no-deps -v <ssh-dir>:/out/ssh -v ./secrets:/out/secrets \
+     --entrypoint /app/scripts/sudoctor-check-user scheduler <alias> /out/ssh /out/secrets
+   ```
+
+   Then mount `./secrets` read-only at `/run/secrets` in the scheduler service. To store the password next to the key instead, omit the secrets mount and the last argument. The files are root-owned with mode `600`, and the script prints the settings for the next step. From a checkout, you can also run `scripts/sudoctor-check-user` directly.
+2. Add them to `host_vars/<alias>.yml`. Paths must be valid inside the scheduler container. Optionally, set `sudoctor_check_from` (for example `172.16.0.0/12`) to limit where the key is accepted. Check the scheduler's source address with `docker network inspect`.
+3. Pull or rebuild the scheduler image (it includes `sshpass`), then run setup once with your admin account. Setup reads the key and password files on the controller, so run it in the scheduler: `docker compose exec -e SUDOCTOR_BECOME_ARGS='--ask-pass --ask-become-pass' scheduler /app/scripts/sudoctor setup <alias>`.
+
+Scheduled checks use the check account for these hosts and skip `BatchMode=yes` for them so `sshpass` can answer the password prompt. Setup, update, reboot, recovery, and manual checks still use the inventory's `ansible_user`. Setup updates the password whenever it runs; to rotate it, replace the `.pass` file and run setup again.
+
+Limitations:
+
+- The key and password are stored together on the scheduler host, so they don't act as two independent factors there. They do protect the account against a leak of either one alone.
+- The check account can run ordinary commands as itself. Only its sudo rights are restricted.
+- The password must not contain a line break. The helper generates a URL-safe password.
+- `sudoctor_check_*` values must be literal paths and names, not Jinja templates.
+
 If you already use Caddy on the same host, leave the dashboard bound to loopback and add a site to your existing Caddy configuration:
 
 ```caddyfile

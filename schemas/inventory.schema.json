@@ -15,6 +15,24 @@
       "default": false,
       "description": "Permit update to reboot when /var/run/reboot-required exists."
     },
+    "sudoctor_check_user": {
+      "type": "string",
+      "pattern": "^[a-z_][a-z0-9_-]*$",
+      "description": "Dedicated account for scheduled checks. Setup creates it; the Docker scheduler logs in as it."
+    },
+    "sudoctor_check_key_file": {
+      "type": "string",
+      "description": "Controller path of the check account's private key; setup authorizes the adjacent .pub file."
+    },
+    "sudoctor_check_password_file": {
+      "type": "string",
+      "description": "Controller path of the check account's SSH password, for hosts that require key and password."
+    },
+    "sudoctor_check_from": {
+      "type": "string",
+      "pattern": "^[0-9A-Za-z.:/,*?!_-]+$",
+      "description": "Optional authorized_keys from= pattern list, for example 172.16.0.0/12."
+    },
     "sudoctor_disk_warning_percent": {
       "$ref": "#/definitions/diskWarningPercent",
       "default": 85
