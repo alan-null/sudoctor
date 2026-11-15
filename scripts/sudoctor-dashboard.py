@@ -68,6 +68,14 @@ def overview():
     return state
 
 
+STATIC = {
+    '/favicon.ico': ('favicon.ico', 'image/x-icon'),
+    '/assets/favicon-32.png': ('assets/favicon-32.png', 'image/png'),
+    '/assets/apple-touch-icon.png': ('assets/apple-touch-icon.png', 'image/png'),
+    '/assets/sudoctor-mascot.png': ('assets/sudoctor-mascot.png', 'image/png'),
+}
+
+
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self):
         if self.path == '/health':
@@ -81,8 +89,9 @@ class Handler(BaseHTTPRequestHandler):
             content_type = 'application/json'
         elif self.path == '/style.css':
             body, content_type = (ROOT / 'dashboard/style.css').read_bytes(), 'text/css; charset=utf-8'
-        elif self.path == '/assets/sudoctor-mascot.png':
-            body, content_type = (ROOT / 'dashboard/assets/sudoctor-mascot.png').read_bytes(), 'image/png'
+        elif self.path in STATIC:
+            name, content_type = STATIC[self.path]
+            body = (ROOT / 'dashboard' / name).read_bytes()
         elif self.path in ('/', '/index.html'):
             body, content_type = (ROOT / 'dashboard/index.html').read_bytes(), 'text/html; charset=utf-8'
         else:
