@@ -11,7 +11,8 @@ schedule = os.environ.get('SUDOCTOR_CRON', '*/15 * * * *')
 if not re.fullmatch(r'[0-9*/,\-]+(?: +[0-9*/,\-]+){4}', schedule):
     sys.exit('SUDOCTOR_CRON must contain five numeric cron fields')
 with open('/tmp/sudoctor-env', 'w') as env:
-    for key in ('SUDOCTOR_INVENTORY', 'XDG_CONFIG_HOME', 'SUDOCTOR_STATE_DIR', 'SUDOCTOR_HOST_TIMEOUT', 'SUDOCTOR_STALE_SECONDS', 'ANSIBLE_CONFIG'):
+    for key in ('SUDOCTOR_INVENTORY', 'XDG_CONFIG_HOME', 'SUDOCTOR_STATE_DIR', 'SUDOCTOR_HOST_TIMEOUT', 'SUDOCTOR_STALE_SECONDS', 'ANSIBLE_CONFIG',
+                'SUDOCTOR_NOTIFY_CONFIG', 'SUDOCTOR_PLUGINS_DIR', 'SUDOCTOR_PUBLIC_URL', 'TZ'):
         if key in os.environ:
             env.write('export ' + key + '=' + shlex.quote(os.environ[key]) + '\n')
 with open('/tmp/sudoctor-crontab', 'w') as cron:

@@ -1,0 +1,172 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "sudoctor notifications",
+  "description": "Notification providers and routing rules for scheduled checks. A plugin knows how to send, a provider is a named, configured plugin instance, and a rule decides which providers are notified.",
+  "type": "object",
+  "required": ["providers", "rules"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {"type": "string"},
+    "providers": {
+      "type": "object",
+      "description": "Named provider instances, referenced by name from rules.",
+      "propertyNames": {"pattern": "^[A-Za-z0-9_.-]+$"},
+      "additionalProperties": {"$ref": "#/definitions/provider"}
+    },
+    "rules": {
+      "type": "array",
+      "description": "Rules evaluated top to bottom for every host, or for every check of a host when scope is check.",
+      "items": {"$ref": "#/definitions/rule"}
+    }
+  },
+  "definitions": {
+    "duration": {
+      "type": "string",
+      "pattern": "^[0-9]+[smhd]$",
+      "description": "Duration such as 90s, 30m, 12h or 7d."
+    },
+    "secretOptions": {
+      "description": "An option ending in _file is read from that file and passed to the plugin without the suffix, so url_file becomes url.",
+      "propertyNames": {"pattern": "^[a-z][a-z0-9_]*$"}
+    },
+    "provider": {
+      "type": "object",
+      "required": ["plugin"],
+      "additionalProperties": false,
+      "properties": {
+        "plugin": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_-]*$",
+          "description": "Plugin file name without .py: a built-in (webhook, ntfy, discord, slack, debug) or a file in the plugins directory.",
+          "examples": ["webhook", "ntfy", "discord", "slack", "debug"]
+        },
+        "options": {
+          "type": "object",
+          "description": "Plugin-specific options. Options ending in _file are read from files, for secrets.",
+          "allOf": [{"$ref": "#/definitions/secretOptions"}]
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"plugin": {"const": "webhook"}}},
+          "then": {"required": ["options"], "properties": {"options": {
+            "anyOf": [{"required": ["url"]}, {"required": ["url_file"]}],
+            "properties": {
+              "url": {"type": "string", "pattern": "^https?://", "description": "URL that receives the message as JSON with POST."},
+              "url_file": {"type": "string"},
+              "token": {"type": "string", "description": "Sent as a Bearer token in the Authorization header."},
+              "token_file": {"type": "string"},
+              "headers": {"type": "object", "additionalProperties": {"type": "string"}, "description": "Extra request headers."}
+            }
+          }}}
+        },
+        {
+          "if": {"properties": {"plugin": {"const": "ntfy"}}},
+          "then": {"required": ["options"], "properties": {"options": {
+            "anyOf": [{"required": ["url"]}, {"required": ["url_file"]}],
+            "properties": {
+              "url": {"type": "string", "pattern": "^https?://", "description": "Topic URL, for example https://ntfy.sh/my-topic."},
+              "url_file": {"type": "string"},
+              "token": {"type": "string", "description": "Access token for protected topics."},
+              "token_file": {"type": "string"},
+              "priority": {"enum": ["min", "low", "default", "high", "urgent"], "description": "Fixed priority. Without it, the priority follows the message severity."},
+              "tags": {"type": "array", "items": {"type": "string"}, "description": "Extra tags, added after the severity emoji tag."}
+            }
+          }}}
+        },
+        {
+          "if": {"properties": {"plugin": {"enum": ["discord", "slack"]}}},
+          "then": {"required": ["options"], "properties": {"options": {
+            "anyOf": [{"required": ["webhook_url"]}, {"required": ["webhook_url_file"]}],
+            "properties": {
+              "webhook_url": {"type": "string", "pattern": "^https://"},
+              "webhook_url_file": {"type": "string"},
+              "username": {"type": "string", "description": "Display name override (Discord)."},
+              "channel": {"type": "string", "description": "Channel override for legacy Slack webhooks."}
+            }
+          }}}
+        }
+      ]
+    },
+    "rule": {
+      "type": "object",
+      "required": ["name", "conditions", "providers"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {"type": "string", "minLength": 1, "description": "Unique rule name, shown in messages and logs. Renaming a rule resets its alert state."},
+        "scope": {"enum": ["host", "check"], "default": "host", "description": "host evaluates the rule once per host. check evaluates it once per item in the host's checks list and enables check_* fields."},
+        "match": {"enum": ["all", "any"], "default": "all", "description": "all requires every condition (AND); any requires one (OR)."},
+        "conditions": {"type": "array", "description": "An empty list matches every host or check.", "items": {"$ref": "#/definitions/condition"}},
+        "providers": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string"}, "description": "Provider names to notify."},
+        "for": {"$ref": "#/definitions/duration", "description": "Conditions must match for this long before the first notification. Default 0s."},
+        "repeat": {"$ref": "#/definitions/duration", "description": "Send again at this interval while the conditions keep matching. Default: never."},
+        "notify_recovery": {"type": "boolean", "default": false, "description": "Send a resolved message when matching stops after a notification was sent."},
+        "severity": {"enum": ["info", "warning", "critical"], "description": "Message severity. Default: the host or check status."},
+        "message": {"type": "string", "description": "Summary template with $field placeholders, for example '$host disk at $root_disk_used_percent%'."},
+        "stop_on_match": {"type": "boolean", "default": false, "description": "While this rule matches, later rules for the same host or check keep their state but do not send."}
+      },
+      "if": {"not": {"required": ["scope"], "properties": {"scope": {"const": "check"}}}},
+      "then": {"properties": {"conditions": {"items": {"properties": {"field": {"not": {"pattern": "^check_"}}}}}}}
+    },
+    "condition": {
+      "type": "object",
+      "required": ["field", "op", "value"],
+      "additionalProperties": false,
+      "properties": {
+        "field": {
+          "enum": [
+            "host", "groups", "outcome", "previous_outcome", "outcome_changed",
+            "status", "previous_status", "status_changed", "issues", "warnings",
+            "root_disk_used_percent", "root_disk_free_mb", "memory_available_mb", "load_1m",
+            "uptime_hours", "pending_updates", "reboot_required", "report_age_seconds",
+            "check_id", "check_category", "check_label", "check_status", "check_previous_status",
+            "check_status_changed", "check_message", "check_value", "check_days_left"
+          ],
+          "description": "Field to compare. check_* fields require scope check."
+        },
+        "op": {
+          "enum": ["=", "!=", ">", ">=", "<", "<=", "contains", "not_contains", "matches", "in", "not_in"],
+          "description": "contains is a substring test and matches is a glob (* and ?). On list fields, they match when any item does."
+        },
+        "value": {"type": ["string", "number", "boolean", "array", "null"], "items": {"type": ["string", "number", "boolean"]}}
+      },
+      "allOf": [
+        {"if": {"properties": {"op": {"enum": ["in", "not_in"]}}}, "then": {"properties": {"value": {"type": "array", "minItems": 1}}}},
+        {"if": {"properties": {"op": {"enum": [">", ">=", "<", "<="]}}}, "then": {"properties": {"value": {"type": "number"}}}},
+        {"if": {"properties": {"op": {"enum": ["contains", "not_contains", "matches"]}}}, "then": {"properties": {"value": {"type": "string"}}}},
+        {"if": {"properties": {"op": {"enum": ["=", "!="]}}}, "then": {"properties": {"value": {"type": ["string", "number", "boolean", "null"]}}}},
+        {"if": {"properties": {"field": {"enum": ["outcome_changed", "status_changed", "reboot_required", "check_status_changed"]}}},
+         "then": {"properties": {"op": {"enum": ["=", "!="]}, "value": {"type": "boolean"}}}},
+        {"if": {"properties": {"field": {"enum": ["outcome", "previous_outcome"]}}},
+         "then": {"properties": {"value": {"anyOf": [
+           {"enum": ["ok", "warning", "critical", "timeout", "unreachable", "check_error", null]},
+           {"type": "array", "items": {"enum": ["ok", "warning", "critical", "timeout", "unreachable", "check_error"]}},
+           {"type": "string", "pattern": "[*?]"}]}}}},
+        {"if": {"properties": {"field": {"enum": ["status", "previous_status"]}}},
+         "then": {"properties": {"value": {"anyOf": [
+           {"enum": ["ok", "warning", "critical", null]},
+           {"type": "array", "items": {"enum": ["ok", "warning", "critical"]}}]}}}},
+        {"if": {"properties": {"field": {"enum": ["check_status", "check_previous_status"]}}},
+         "then": {"properties": {"value": {"anyOf": [
+           {"enum": ["ok", "warning", "critical", "unknown", null]},
+           {"type": "array", "items": {"enum": ["ok", "warning", "critical", "unknown"]}}]}}}}
+      ]
+    }
+  },
+  "examples": [
+    {
+      "providers": {
+        "phone": {"plugin": "ntfy", "options": {"url": "https://ntfy.sh/example-topic", "token_file": "/run/secrets/ntfy-token"}},
+        "ops": {"plugin": "discord", "options": {"webhook_url_file": "/run/secrets/discord-webhook"}}
+      },
+      "rules": [
+        {"name": "Host unreachable", "conditions": [{"field": "outcome", "op": "in", "value": ["unreachable", "timeout"]}],
+         "for": "30m", "repeat": "12h", "notify_recovery": true, "providers": ["phone"]},
+        {"name": "Status changed", "conditions": [{"field": "status_changed", "op": "=", "value": true}], "providers": ["ops"]},
+        {"name": "Certificate expiring", "scope": "check",
+         "conditions": [{"field": "check_id", "op": "matches", "value": "security.certificate.*"}, {"field": "check_days_left", "op": "<=", "value": 14}],
+         "repeat": "1d", "providers": ["ops"]}
+      ]
+    }
+  ]
+}

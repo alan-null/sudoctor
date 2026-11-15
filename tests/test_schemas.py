@@ -94,6 +94,32 @@ class Schemas(unittest.TestCase):
         del config['sudoctor_tmux'][0]['windows'][0]['panes']
         self.invalid(config)
 
+    def test_notify_schema(self):
+        validator = self.validators['notify.schema.json']
+        example = json.loads((ROOT / 'docker/notify.example.json').read_text())
+        validator.validate(example)
+        for config in self.schemas['notify.schema.json']['examples']:
+            validator.validate(config)
+        validator.validate({'providers': {'mine': {'plugin': 'telegram', 'options': {'chat_id': 1, 'token_file': '/t'}}}, 'rules': []})
+        rule = {'name': 'r', 'conditions': [], 'providers': ['p']}
+        for change in (
+            {'scope': 'disk'}, {'for': '5 min'}, {'severity': 'urgent'}, {'when': {}}, {'providers': []},
+            {'conditions': [{'field': 'check_id', 'op': '=', 'value': 'x'}]},
+            {'conditions': [{'field': 'load_1m', 'op': '>', 'value': '1'}]},
+            {'conditions': [{'field': 'status', 'op': 'in', 'value': 'critical'}]},
+            {'conditions': [{'field': 'status', 'op': '=', 'value': 'down'}]},
+            {'conditions': [{'field': 'reboot_required', 'op': '>', 'value': 1}]},
+            {'conditions': [{'field': 'nope', 'op': '=', 'value': 1}]},
+        ):
+            with self.subTest(change=change):
+                self.assertTrue(list(validator.iter_errors({'providers': {}, 'rules': [{**rule, **change}]})))
+        for provider in ({'plugin': 'ntfy'}, {'plugin': 'ntfy', 'options': {'url': 'ftp://x'}},
+                         {'plugin': 'discord', 'options': {'webhook_url': 'http://x'}}, {'plugin': 'Bad'}):
+            with self.subTest(provider=provider):
+                self.assertTrue(list(validator.iter_errors({'providers': {'p': provider}, 'rules': []})))
+        validator.validate({'providers': {}, 'rules': [{**rule, 'scope': 'check',
+                            'conditions': [{'field': 'check_status', 'op': 'in', 'value': ['warning', 'critical']}]}]})
+
     def test_shorthand_and_readiness(self):
         self.valid({'sudoctor_tmux': [{'name': 'worker', 'user': 'alan', 'vpn_unit': 'netbird.service',
                                       'ready_tcp': {'host': '10.0.0.1', 'port': 443, 'timeout': 180},

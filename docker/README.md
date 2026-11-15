@@ -42,6 +42,9 @@ Edit the local `.env` file using [the example](.env.example), or set these varia
 | `SUDOCTOR_STALE_SECONDS` | `3600` | Age in seconds after which an attempt is stale; set it above your schedule interval and expected sweep duration |
 | `SUDOCTOR_PORT` | `8000` | Host port for the dashboard |
 | `SUDOCTOR_BIND_ADDRESS` | `127.0.0.1` | Host address for the dashboard port |
+| `SUDOCTOR_NOTIFY_DIR` | `${XDG_CONFIG_HOME:-$HOME/.config}/sudoctor/notify` | Directory with `notify.json` and secret files, mounted read-only; see [Notifications](../docs/notifications.md) |
+| `SUDOCTOR_PLUGINS_DIR` | `../plugins` | Extra notification plugins, mounted read-only |
+| `SUDOCTOR_PUBLIC_URL` | empty | Dashboard link included in notifications |
 
 For a weekly schedule, set `SUDOCTOR_STALE_SECONDS=691200` (eight days) or another value that accounts for your sweep duration. Cron runs with the container's time zone. The scheduler also starts one sweep when it starts. Missed runs are not replayed after downtime. If a sweep is still running when another starts, the new sweep exits without overlapping it. The state volume retains reports across container restarts. Only one scheduler should use a state volume, and its filesystem must support local file locks.
 

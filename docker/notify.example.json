@@ -1,0 +1,72 @@
+{
+  "$schema": "../schemas/notify.schema.json",
+  "providers": {
+    "phone": {
+      "plugin": "ntfy",
+      "options": {"url": "https://ntfy.sh/replace-with-a-private-topic", "token_file": "/app/notify/ntfy.token"}
+    },
+    "ops": {
+      "plugin": "discord",
+      "options": {"webhook_url_file": "/app/notify/discord.url"}
+    },
+    "log": {"plugin": "debug"}
+  },
+  "rules": [
+    {
+      "name": "Host unreachable",
+      "conditions": [{"field": "outcome", "op": "in", "value": ["unreachable", "timeout", "check_error"]}],
+      "for": "30m",
+      "repeat": "12h",
+      "notify_recovery": true,
+      "stop_on_match": true,
+      "providers": ["phone", "ops"]
+    },
+    {
+      "name": "Production critical",
+      "conditions": [
+        {"field": "status", "op": "=", "value": "critical"},
+        {"field": "groups", "op": "in", "value": ["prod"]}
+      ],
+      "repeat": "6h",
+      "notify_recovery": true,
+      "providers": ["phone"]
+    },
+    {
+      "name": "Status changed",
+      "conditions": [{"field": "status_changed", "op": "=", "value": true}],
+      "providers": ["ops"]
+    },
+    {
+      "name": "Disk almost full",
+      "match": "any",
+      "conditions": [
+        {"field": "root_disk_used_percent", "op": ">=", "value": 90},
+        {"field": "root_disk_free_mb", "op": "<", "value": 2048}
+      ],
+      "for": "1h",
+      "repeat": "1d",
+      "message": "$host root disk at $root_disk_used_percent% ($root_disk_free_mb MB free)",
+      "providers": ["ops"]
+    },
+    {
+      "name": "Certificate expiring",
+      "scope": "check",
+      "conditions": [
+        {"field": "check_id", "op": "matches", "value": "security.certificate.*"},
+        {"field": "check_days_left", "op": "<=", "value": 14}
+      ],
+      "repeat": "1d",
+      "severity": "warning",
+      "message": "$host certificate $check_label expires in $check_days_left days",
+      "providers": ["ops"]
+    },
+    {
+      "name": "Reboot pending for a week",
+      "conditions": [{"field": "reboot_required", "op": "=", "value": true}],
+      "for": "7d",
+      "repeat": "7d",
+      "severity": "info",
+      "providers": ["ops"]
+    }
+  ]
+}

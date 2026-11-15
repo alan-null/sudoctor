@@ -10,9 +10,14 @@ services:
       SUDOCTOR_CRON: ${SUDOCTOR_CRON:-*/15 * * * *}
       SUDOCTOR_HOST_TIMEOUT: ${SUDOCTOR_HOST_TIMEOUT:-180}
       SUDOCTOR_STALE_SECONDS: ${SUDOCTOR_STALE_SECONDS:-3600}
+      SUDOCTOR_NOTIFY_CONFIG: /app/notify/notify.json
+      SUDOCTOR_PLUGINS_DIR: /app/plugins
+      SUDOCTOR_PUBLIC_URL: ${SUDOCTOR_PUBLIC_URL:-}
       TZ: ${TZ:-UTC}
     volumes:
       - state:/state
+      - ${SUDOCTOR_NOTIFY_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/sudoctor/notify}:/app/notify:ro
+      - ${SUDOCTOR_PLUGINS_DIR:-../plugins}:/app/plugins:ro
       - ${SUDOCTOR_INVENTORY_DIR:-${XDG_CONFIG_HOME:-${HOME}/.config}/sudoctor/inventory}:/app/inventory:ro
       - ${SUDOCTOR_SSH_DIR:-~/.ssh}:/root/.ssh:ro
   dashboard:

@@ -6,5 +6,11 @@
       "inventory/group_vars/*.yml",
       "inventory/group_vars/*.yaml"
     ]
-  }
+  },
+  "json.schemas": [
+    {
+      "fileMatch": ["notify.json", "notify.example.json"],
+      "url": "./schemas/notify.schema.json"
+    }
+  ]
 }

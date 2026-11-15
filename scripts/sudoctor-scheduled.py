@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Run scheduled host checks."""
+import copy
 import datetime as dt
 import fcntl
 import json
@@ -12,6 +13,9 @@ import subprocess
 import sys
 import tempfile
 import uuid
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import sudoctor_notify as notify  # noqa: E402
 
 ROOT = Path(__file__).resolve().parent.parent
 STATE = Path(os.environ.get('SUDOCTOR_STATE_DIR', '/state'))
@@ -59,6 +63,27 @@ def inventory_hosts(data):
     if any(not re.fullmatch(r'[A-Za-z0-9_.-]+', host) for host in found):
         raise ValueError('Inventory aliases must contain only letters, digits, dots, underscores, or hyphens')
     return sorted(found)
+
+
+def inventory_groups(data, host):
+    """Return every group that contains host directly or through child groups."""
+    def contains(group, path=()):
+        value = data.get(group, {})
+        return host in value.get('hosts', []) or any(
+            child not in path and contains(child, path + (group,)) for child in value.get('children', []))
+    return sorted(group for group in data if group not in ('_meta', 'all', 'ungrouped') and contains(group))
+
+
+def notify_sweep(state, observations, hosts):
+    """Send notifications; a configuration or plugin problem is recorded, never fatal to checks."""
+    try:
+        enabled = notify.run(observations, hosts, state.setdefault('notify', {}).setdefault('alerts', {}))
+        state['notify']['error'] = None
+        if not enabled:
+            state.pop('notify')
+    except notify.ConfigError as exc:
+        state['notify']['error'] = str(exc)
+        print('notify: ' + str(exc), file=sys.stderr, flush=True)
 
 
 def run_command(command, timeout, env):
@@ -132,8 +157,10 @@ def sweep():
             return 1
         state['hosts'] = {name: state['hosts'].get(name, {}) for name in hosts}
         save_state(state)
+        observations = []
         for name in hosts:
             host = state['hosts'][name]
+            previous = copy.deepcopy(host)
             attempt = {'id': str(uuid.uuid4()), 'started_at': now(), 'ended_at': None, 'outcome': 'running', 'error': None}
             host['attempt'] = attempt
             save_state(state)
@@ -163,6 +190,9 @@ def sweep():
             attempt.update(ended_at=now(), outcome=outcome, error=error)
             save_state(state)
             print(f'{name}: {outcome}', flush=True)
+            observations.append({'host': name, 'groups': inventory_groups(data, name), 'previous': previous,
+                                 'current': host, 'fresh': outcome in ('ok', 'warning', 'critical')})
+        notify_sweep(state, observations, hosts)
         state['last_sweep'] = now()
         save_state(state)
     return 0
@@ -173,4 +203,16 @@ if __name__ == '__main__':
         sys.exit('Timeout must be positive')
     if len(sys.argv) == 2 and sys.argv[1] == 'sweep':
         sys.exit(sweep())
-    sys.exit('Usage: sudoctor-scheduled.py sweep')
+    try:
+        if len(sys.argv) == 2 and sys.argv[1] == 'notify-check':
+            config = notify.load_config(notify.config_path(), notify.load_plugins(notify.plugins_dir()))
+            print(f'{notify.config_path()}: {len(config["providers"])} provider(s), {len(config["rules"])} rule(s)')
+            for name, (plugin, _, _) in sorted(config['providers'].items()):
+                print(f'  provider {name}: {plugin}')
+            sys.exit(0)
+        if len(sys.argv) >= 2 and sys.argv[1] == 'notify-test':
+            import sudoctor_notify_preview
+            sys.exit(sudoctor_notify_preview.main(sys.argv[2:]))
+    except notify.ConfigError as exc:
+        sys.exit(str(exc))
+    sys.exit('Usage: sudoctor-scheduled.py sweep | notify-check | notify-test [PROVIDER] [options; see --help]')

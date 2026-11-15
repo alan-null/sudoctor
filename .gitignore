@@ -5,3 +5,7 @@ __pycache__/
 
 /docker/.env
 temp/
+
+# Local notification plugins; built-ins live in scripts/notify-plugins.
+/plugins/*
+!/plugins/.gitkeep

@@ -28,6 +28,10 @@ class ScheduledTests(unittest.TestCase):
         self.dashboard_state_patch = patch.object(dashboard, 'STATE', Path(self.temp.name))
         self.dashboard_state_patch.start()
         self.addCleanup(self.dashboard_state_patch.stop)
+        # Never read the developer's real notify.json, which could send real notifications.
+        env_patch = patch.dict(scheduled.os.environ, {'SUDOCTOR_NOTIFY_CONFIG': str(Path(self.temp.name) / 'no-notify.json')})
+        env_patch.start()
+        self.addCleanup(env_patch.stop)
 
     def test_nested_inventory(self):
         self.assertEqual(scheduled.inventory_hosts({'servers': {'hosts': ['b'], 'children': ['group']}, 'group': {'hosts': ['a']}}), ['a', 'b'])

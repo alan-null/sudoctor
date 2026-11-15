@@ -17,6 +17,8 @@ The optional Docker deployment adds scheduled checks and a dashboard
 
 For scheduled checks and the dashboard using Docker Compose, see the [Docker deployment guide](docker/README.md). Docker configuration and deployment files are contained in [docker/](docker/).
 
+To send alerts from scheduled checks to ntfy, Discord, Slack, webhooks, or your own plugins, see [Notifications](docs/notifications.md).
+
 For diagrams of SSH accounts, sudo rules, and how reports reach the dashboard, see [How auth and connections work](docs/auth-and-connections.md).
 
 ## 1. Configure hosts
@@ -54,6 +56,7 @@ Reports default to `${XDG_STATE_HOME:-$HOME/.local/state}/sudoctor/reports`; set
 - [inventory.schema.json](schemas/inventory.schema.json) validates host and group variables, including services, containers, health probes, and tmux sessions/windows/panes.
 - [tmux.schema.json](schemas/tmux.schema.json) validates a generated `/etc/sudoctor/tmux/<name>.json` session configuration.
 - [health.schema.json](schemas/health.schema.json) validates generated `/etc/sudoctor/health.json` expectations. This is not the schema for health reports.
+- [notify.schema.json](schemas/notify.schema.json) validates the scheduler's [notification](docs/notifications.md) configuration, `notify.json`.
 
 In VS Code, install the recommended **YAML extension by Red Hat** for autocomplete, descriptions, allowed values, and validation errors. Workspace settings associate all inventory host/group YAML files with the inventory schema. Existing files also have a `yaml-language-server` comment, which other compatible editors can use. For personal inventory outside the checkout, use an absolute path to `schemas/inventory.schema.json` in the comment or configure your editor to associate those files with that schema; the example relative schema paths only work inside the checkout.
 

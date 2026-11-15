@@ -1,0 +1,25 @@
+[
+  {
+    "items": [
+      {
+        "host": "web-1",
+        "severity": "critical",
+        "summary": "web-1 is critical",
+        "details": ["systemd not active: nginx.service", "http unhealthy: api"],
+        "rules": ["Production critical"]
+      },
+      {
+        "host": "web-1",
+        "check_id": "security.certificate.api",
+        "summary": "web-1: Certificate: api is warning",
+        "details": ["Expires in 9.5 days; direct TLS with system trust"],
+        "rules": ["Certificate expiring"]
+      }
+    ]
+  },
+  {
+    "items": [
+      {"kind": "resolved", "host": "web-1", "summary": "web-1 is ok", "rules": ["Production critical"]}
+    ]
+  }
+]
