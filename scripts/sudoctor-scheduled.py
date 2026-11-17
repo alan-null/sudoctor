@@ -77,7 +77,8 @@ def inventory_groups(data, host):
 def notify_sweep(state, observations, hosts):
     """Send notifications; a configuration or plugin problem is recorded, never fatal to checks."""
     try:
-        enabled = notify.run(observations, hosts, state.setdefault('notify', {}).setdefault('alerts', {}))
+        status = state.setdefault('notify', {})
+        enabled = notify.run(observations, hosts, status.setdefault('alerts', {}), status=status)
         state['notify']['error'] = None
         if not enabled:
             state.pop('notify')

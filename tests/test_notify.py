@@ -279,6 +279,15 @@ class NotifyTests(unittest.TestCase):
             state = scheduled.read_state()
             self.assertEqual(state['notify']['error'], None)
             self.assertEqual(list(state['notify']['alerts']), ['bad|web|'])
+            alert = state['notify']['alerts']['bad|web|']
+            self.assertEqual((alert['severity'], alert['summary']), ('critical', 'web is critical'))
+            self.assertEqual(state['notify']['providers'], {'a': 'recorder'})
+            self.assertEqual([(r['name'], r['providers'], r['for_seconds']) for r in state['notify']['rules']], [('bad', ['a'], 0)])
+            history = state['notify']['history']
+            self.assertEqual([(h['provider'], h['ok'], h['item_count']) for h in history], [('a', True, 1)])
+            self.assertEqual(history[0]['items'][0]['host'], 'web')
+            self.assertNotIn('fields', history[0]['items'][0])
+            self.assertNotIn('options', json.dumps(state['notify']))
             self.assertEqual(loaded['recorder'].SENT[0][1]['items'][0]['fields']['groups'], ['prod', 'servers'])
             config.write_text('{')
             self.assertEqual(scheduled.sweep(), 0)
@@ -286,6 +295,26 @@ class NotifyTests(unittest.TestCase):
             config.unlink()
             self.assertEqual(scheduled.sweep(), 0)
             self.assertNotIn('notify', scheduled.read_state())
+
+    def test_status_keeps_history_and_hides_secrets(self):
+        (self.plugins_dir / 'broken.py').write_text(
+            'def send(message, options):\n    raise RuntimeError("cannot reach " + options["url"])\n')
+        path = self.dir / 'notify.json'
+        path.write_text(json.dumps({'providers': {'a': {'plugin': 'recorder', 'options': {'target': 'a'}}, 'x': {'plugin': 'broken', 'options': {'url': 'https://hook.test/SECRET'}}},
+                                    'rules': [{'name': 'all', 'conditions': [], 'providers': ['a', 'x'], 'repeat': '1s'}]}))
+        env = {'SUDOCTOR_NOTIFY_CONFIG': str(path), 'SUDOCTOR_PLUGINS_DIR': str(self.plugins_dir)}
+        status, alerts = {}, {}
+        with patch.object(notify, 'HISTORY_SIZE', 3):
+            for minute in range(3):
+                notify.run([observation('web', 'ok', report('ok'))], ['web'], alerts, T0 + dt.timedelta(minutes=minute), env,
+                           log=lambda *a, **k: None, status=status)
+        self.assertEqual(len(status['history']), 3)
+        self.assertEqual(status['history'][0]['time'], (T0 + dt.timedelta(minutes=2)).isoformat())
+        failed = [h for h in status['history'] if not h['ok']]
+        self.assertTrue(failed)
+        self.assertEqual(failed[0]['error'], 'RuntimeError: cannot reach <hidden>')
+        self.assertEqual(status['evaluated_at'], (T0 + dt.timedelta(minutes=2)).isoformat())
+        self.assertNotIn('SECRET', json.dumps(status))
 
     def test_inventory_groups(self):
         data = {'_meta': {}, 'all': {'children': ['servers']}, 'servers': {'children': ['prod', 'eu']},

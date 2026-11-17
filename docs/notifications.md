@@ -225,9 +225,20 @@ With `--reports`, every rule that sends to the chosen provider is evaluated as i
 
 The exit code is 0 when every message was sent, 1 when a plugin failed, and 2 for invalid arguments or configuration.
 
+## Dashboard
+
+The dashboard's **Notifications** page shows what the scheduler stored after the last sweep:
+
+- **Open alerts**: every rule currently matching a host or check, with its severity, when it started, when it was last sent, and when the next reminder is due. Alerts still waiting for `for` show as *pending*, with the time they will send.
+- **Providers**: each provider's plugin, the rules that use it, and its last delivery, including the error if it failed.
+- **Rules**: scope, providers, `for`, `repeat`, recovery and how many alerts each rule has open.
+- **Recent deliveries**: the last 50 messages, newest first, with their items and any error.
+- A banner when `notify.json` is invalid.
+
+A host's page also lists its open alerts. The page uses the `notify` section of the scheduler's `state.json`. Provider options are never stored there; error messages have option values such as tokens and webhook URLs replaced with `<hidden>`. The page is empty in local mode (`--local`) and for opened files, which have no scheduler state. **View demo** includes fictional notification data.
+
 ## Limitations
 
 - No scheduled digest or quiet hours yet.
 - Rules run only after a complete sweep; a long sweep delays notifications.
 - Resolved messages are sent once, without retry.
-- The dashboard does not show notification state or errors yet; see the scheduler log or `state.json`.

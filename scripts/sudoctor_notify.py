@@ -21,6 +21,8 @@ REPORT_OUTCOMES = ('ok', 'warning', 'critical')
 OUTCOME_TEXT = {'unreachable': 'is unreachable', 'timeout': 'check timed out', 'check_error': 'check failed'}
 SEVERITY = {'ok': 0, 'info': 1, 'warning': 2, 'critical': 3}
 UNKNOWN = object()  # No fresh data: the rule keeps its previous state.
+HISTORY_SIZE = 50    # deliveries kept in state.json for the dashboard
+HISTORY_ITEMS = 20   # items kept per delivery
 
 HOST_FIELDS = (
     'host', 'groups', 'outcome', 'previous_outcome', 'outcome_changed',
@@ -406,6 +408,9 @@ def evaluate(config, observations, hosts, alerts, now):
                     if entry is None:
                         entry = alerts[key] = {'rule': rule['name'], 'host': observation['host'], 'check': check,
                                                'since': iso(now), 'notified_at': None}
+                    # Kept for the dashboard; refreshed while the rule matches.
+                    entry['severity'] = severity(rule, fields, scope)
+                    entry['summary'] = summary(rule, fields, scope)
                     notified = parse_time(entry['notified_at']) if entry.get('notified_at') else None
                     if notified is None:
                         due = (now - parse_time(entry['since'])).total_seconds() >= rule['for_seconds']
@@ -471,8 +476,29 @@ def build_message(items, now, dashboard_url=None):
             'dashboard_url': dashboard_url, 'items': items}
 
 
-def dispatch(config, outbox, now, dashboard_url=None, log=print):
-    """Send one message per provider and return the alert keys that at least one provider accepted."""
+def redact(text, options):
+    """Hide option values (tokens, webhook URLs) that an exception message may repeat."""
+    for value in options.values():
+        if isinstance(value, str) and len(value) >= 6:
+            text = text.replace(value, '<hidden>')
+    return text[:500]
+
+
+def delivery(provider, plugin, message, error):
+    return {
+        'time': message['timestamp_utc'], 'provider': provider, 'plugin': plugin, 'ok': error is None, 'error': error,
+        'title': message['title'], 'severity': message['severity'],
+        'items': [{key: entry[key] for key in ('kind', 'severity', 'host', 'check_id', 'summary', 'rules')}
+                  for entry in message['items'][:HISTORY_ITEMS]],
+        'item_count': len(message['items']),
+    }
+
+
+def dispatch(config, outbox, now, dashboard_url=None, log=print, history=None):
+    """Send one message per provider and return the alert keys that at least one provider accepted.
+
+    With a history list, a summary of each delivery attempt is appended to it (no options, no fields).
+    """
     queues = {}
     for rule, key, entry in outbox:
         for provider in rule['providers']:
@@ -488,11 +514,18 @@ def dispatch(config, outbox, now, dashboard_url=None, log=print):
     delivered = set()
     for provider, queue in queues.items():
         plugin, module, options = config['providers'][provider]
+        message = build_message([q[1] for q in queue], now, dashboard_url)
+        error = None
         try:
-            sent = module.send(build_message([q[1] for q in queue], now, dashboard_url), dict(options)) is not False
+            sent = module.send(message, dict(options)) is not False
+            if not sent:
+                error = 'plugin returned False'
         except Exception as exc:  # A broken provider must not stop the others.
-            log(f'notify: {provider} ({plugin}) failed: {type(exc).__name__}: {exc}', file=sys.stderr)
+            error = redact(f'{type(exc).__name__}: {exc}', options)
+            log(f'notify: {provider} ({plugin}) failed: {error}', file=sys.stderr)
             sent = False
+        if history is not None:
+            history.append(delivery(provider, plugin, message, error))
         if sent:
             log(f'notify: {provider} sent {len(queue)} notification(s)')
             for keys, _ in queue:
@@ -500,15 +533,34 @@ def dispatch(config, outbox, now, dashboard_url=None, log=print):
     return delivered
 
 
-def run(observations, hosts, alerts, now=None, env=os.environ, log=print):
-    """Evaluate rules for one sweep. Return False when no configuration file exists."""
+def describe(config):
+    """Configuration summary for the dashboard: names and timings only, never options."""
+    return {
+        'providers': {name: plugin for name, (plugin, _, _) in config['providers'].items()},
+        'rules': [{'name': rule['name'], 'scope': rule['scope'], 'providers': rule['providers'],
+                   'for_seconds': rule['for_seconds'], 'repeat_seconds': rule['repeat_seconds'],
+                   'notify_recovery': bool(rule.get('notify_recovery')), 'severity': rule.get('severity'),
+                   'stop_on_match': bool(rule.get('stop_on_match'))} for rule in config['rules']],
+    }
+
+
+def run(observations, hosts, alerts, now=None, env=os.environ, log=print, status=None):
+    """Evaluate rules for one sweep. Return False when no configuration file exists.
+
+    With a status dict, the configuration summary, evaluation time and recent deliveries
+    (newest first, at most HISTORY_SIZE) are stored in it for the dashboard.
+    """
     path = config_path(env)
     if not path.is_file():
         return False
     config = load_config(path, load_plugins(plugins_dir(env)))
     now = now or dt.datetime.now(dt.timezone.utc)
     outbox = evaluate(config, observations, set(hosts), alerts, now)
-    delivered = dispatch(config, outbox, now, env.get('SUDOCTOR_PUBLIC_URL') or None, log)
+    sent = []
+    delivered = dispatch(config, outbox, now, env.get('SUDOCTOR_PUBLIC_URL') or None, log, sent)
+    if status is not None:
+        status.update(describe(config), evaluated_at=iso(now))
+        status['history'] = (sent[::-1] + status.get('history', []))[:HISTORY_SIZE]
     for _, key, entry in outbox:
         if key in delivered and entry['kind'] != 'resolved' and key in alerts:
             alerts[key]['notified_at'] = iso(now)
