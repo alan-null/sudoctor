@@ -16,7 +16,7 @@ try { if (localStorage.getItem('sudoctor-theme') === 'light') document.documentE
 html[data-theme=light]{color-scheme:light;--logo-bg:#d1e4da;--logo-border:#e1eee6;--bg:#f4f7f5;--panel:#ffffff;--border:#cdd8d1;--muted:#52665b;--text:#172b20;--green:#18734b;--yellow:#885b08;--red:#b0332b;--control:#e8efea;--control-border:#a5b8ab;--control-hover:#dce7df;--finding:#172b2006;--detail:#344e3f;--check-border:#dce5df}
 .theme-switch{display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;padding:9px}.theme-switch svg{width:20px;height:20px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.theme-switch .moon,html[data-theme=light] .theme-switch .sun{display:none}html[data-theme=light] .theme-switch .moon{display:block}
 .modules{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,340px),1fr));gap:14px;margin-top:20px}.module{border:1px solid var(--border);border-radius:10px;padding:16px;min-width:0}.module h4{font-size:16px;margin:0}.module header{padding:0;gap:10px;margin-bottom:14px}.module-checks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));column-gap:24px}.skipped{color:var(--muted)}@media(max-width:750px){.module-checks{grid-template-columns:1fr}}.module-row{border-top:1px solid var(--border);padding:10px 0;overflow-wrap:anywhere}.module-row strong{font-size:13px}.module-row p{font-size:12px;margin-top:4px}.module-row .state{float:right;font-size:12px;margin-left:8px}.demo-banner{padding:12px 18px;margin-bottom:16px;border:1px solid var(--yellow);border-radius:8px;color:var(--yellow)}
-.brand{color:var(--text);text-decoration:none}.brand:focus-visible{outline:2px solid var(--green);outline-offset:6px;border-radius:8px}.dashboard-footer{max-width:1200px;margin:auto;padding:0 28px 28px;text-align:right}.dashboard-footer button{border:0;background:none;color:var(--muted);padding:4px 0;font-size:12px;text-decoration:underline;text-underline-offset:3px}.dashboard-footer button:hover{color:var(--text)}
+.brand{color:var(--text);text-decoration:none}.brand:focus-visible{outline:2px solid var(--green);outline-offset:6px;border-radius:8px}.dashboard-footer{max-width:1200px;margin:auto;padding:0 28px 28px;display:flex;flex-wrap:wrap;justify-content:space-between;align-items:center;gap:8px 20px}.dashboard-footer #demo{margin-left:auto}.version{color:var(--muted);font-size:12px}.version a,.version .outdated{color:var(--yellow)}.version a{text-underline-offset:3px}.dashboard-footer button{border:0;background:none;color:var(--muted);padding:4px 0;font-size:12px;text-decoration:underline;text-underline-offset:3px}.dashboard-footer button:hover{color:var(--text)}
 </style>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -45,7 +45,7 @@ html[data-theme=light]{color-scheme:light;--logo-bg:#d1e4da;--logo-border:#e1eee
 <div class="about-card"><h2>Notifications</h2><p>When the scheduler has a notification configuration, Notifications shows open alerts, the configured providers and rules, and recent deliveries with any errors. Provider options such as tokens and webhook URLs are never stored there.</p></div>
 </section>
 </main>
-<footer class="dashboard-footer"><button id="demo" type="button">View demo</button></footer>
+<footer class="dashboard-footer"><span class="version" id="version" hidden></span><button id="demo" type="button">View demo</button></footer>
 <script>
 const $ = id => document.getElementById(id);
 const demoDefault = document.documentElement.dataset.demoDefault === 'true';
@@ -423,6 +423,19 @@ $('files').addEventListener('change', async event => {
   show(results.filter(r => r.status === 'fulfilled').map(r => r.value), results.filter(r => r.status === 'rejected').map(r => r.reason.message), 'Loaded from selected files'); event.target.value = '';
 });
 if (demoDefault) showDemo(); else discover();
+async function checkVersion() {
+  try {
+    const response = await fetch('/api/version', {cache:'no-store'}); if (!response.ok) return;
+    const info = await response.json(); const parts = Array.isArray(info.components) ? info.components.filter(c => typeof c?.version === 'string') : [];
+    if (!parts.length) return;
+    const v = value => 'v' + text(String(value).replace(/^v/, ''));
+    const link = /^https:\/\//.test(info.url) ? info.url : 'https://github.com/alan-null/sudoctor/releases';
+    const names = parts.length === 1 ? `sudoctor ${v(parts[0].version)}` : 'sudoctor · ' + parts.map(c => `${text(c.name)} <span${c.outdated ? ' class="outdated"' : ''}>${v(c.version)}</span>`).join(' · ');
+    $('version').innerHTML = names + (info.update_available && info.latest ? ` · <a href="${text(link)}" target="_blank" rel="noopener noreferrer" title="Pull the latest images to update">Update available: ${v(info.latest)}</a>` : '');
+    $('version').hidden = false;
+  } catch {}
+}
+if (!demoDefault) checkVersion();
 </script>
 </body>
 </html>

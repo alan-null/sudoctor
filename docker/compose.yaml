@@ -30,6 +30,7 @@ services:
       - no-new-privileges:true
     environment:
       SUDOCTOR_STALE_SECONDS: ${SUDOCTOR_STALE_SECONDS:-3600}
+      SUDOCTOR_UPDATE_CHECK: ${SUDOCTOR_UPDATE_CHECK:-true}
     ports:
       - "${SUDOCTOR_BIND_ADDRESS:-127.0.0.1}:${SUDOCTOR_PORT:-8000}:8000"
     volumes:

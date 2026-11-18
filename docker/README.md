@@ -42,6 +42,7 @@ Edit the local `.env` file using [the example](.env.example), or set these varia
 | `SUDOCTOR_STALE_SECONDS` | `3600` | Age in seconds after which an attempt is stale; set it above your schedule interval and expected sweep duration |
 | `SUDOCTOR_PORT` | `8000` | Host port for the dashboard |
 | `SUDOCTOR_BIND_ADDRESS` | `127.0.0.1` | Host address for the dashboard port |
+| `SUDOCTOR_UPDATE_CHECK` | `true` | Show a footer notice when a newer sudoctor release exists; set `false` to make no outbound requests. A dashboard and scheduler version mismatch still shows |
 | `SUDOCTOR_NOTIFY_DIR` | `${XDG_CONFIG_HOME:-$HOME/.config}/sudoctor/notify` | Directory with `notify.json` and secret files, mounted read-only; see [Notifications](../docs/notifications.md) |
 | `SUDOCTOR_PLUGINS_DIR` | `../plugins` | Extra notification plugins, mounted read-only |
 | `SUDOCTOR_PUBLIC_URL` | empty | Dashboard link included in notifications |

@@ -4,7 +4,11 @@ import datetime as dt
 import json
 import os
 from pathlib import Path
+import re
 import sys
+import threading
+import time
+import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -12,6 +16,13 @@ STATE = Path(os.environ.get('SUDOCTOR_STATE_DIR', '/state'))
 LOCAL = '--local' in sys.argv[1:]
 REPORTS = Path(os.environ.get('SUDOCTOR_REPORT_DIR') or Path(os.environ.get('XDG_STATE_HOME') or Path.home() / '.local/state') / 'sudoctor/reports').expanduser().resolve()
 STALE = int(os.environ.get('SUDOCTOR_STALE_SECONDS', '3600'))
+UPDATE_CHECK = os.environ.get('SUDOCTOR_UPDATE_CHECK', 'true').strip().lower() not in ('0', 'false', 'no', 'off')
+UPDATE_URL = os.environ.get('SUDOCTOR_UPDATE_URL', 'https://raw.githubusercontent.com/alan-null/sudoctor/master/VERSION')
+RELEASES_URL = 'https://github.com/alan-null/sudoctor/releases'
+UPDATE_TTL, UPDATE_RETRY, UPDATE_TIMEOUT = 86400, 3600, 3
+SEMVER = re.compile(r'(\d+)\.(\d+)\.(\d+)')
+_latest = {'value': None, 'expires': 0.0}
+_latest_lock = threading.Lock()
 
 
 def read_state():
@@ -68,6 +79,68 @@ def overview():
     return state
 
 
+def current_version():
+    try:
+        return (ROOT / 'VERSION').read_text().strip() or None
+    except OSError:
+        return None
+
+
+def parse_version(value):
+    match = SEMVER.fullmatch(str(value or '').strip().removeprefix('v'))
+    return tuple(map(int, match.groups())) if match else None
+
+
+def latest_version():
+    """Return the newest published version, fetched at most once per TTL.
+
+    Failures are cached for a shorter retry window so an unreachable upstream
+    never costs more than one outbound request per hour.
+    """
+    with _latest_lock:
+        now = time.monotonic()
+        if now < _latest['expires']:
+            return _latest['value']
+        value = None
+        try:
+            request = urllib.request.Request(UPDATE_URL, headers={'User-Agent': 'sudoctor-dashboard'})
+            with urllib.request.urlopen(request, timeout=UPDATE_TIMEOUT) as response:
+                text = response.read(64).decode('ascii', 'replace').strip()
+            value = text if parse_version(text) else None
+        except (OSError, ValueError):
+            value = None
+        _latest.update(value=value, expires=now + (UPDATE_TTL if value else UPDATE_RETRY))
+        return value
+
+
+def version_info():
+    """Report each running component's version against the newest one known.
+
+    The target is the newest of the published release and every running
+    component, so a mismatch between dashboard and scheduler shows even when
+    the release check is disabled or offline.
+    """
+    components = [{'name': 'Dashboard', 'version': current_version()}]
+    if not LOCAL:
+        try:
+            scheduler = read_state().get('scheduler_version')
+        except (OSError, ValueError):
+            scheduler = None
+        if scheduler:
+            components.append({'name': 'Scheduler', 'version': str(scheduler)})
+    releases = [parse_version(c['version']) for c in components]
+    # Development or unknown versions are never compared against releases.
+    latest = latest_version() if UPDATE_CHECK and any(releases) else None
+    known = [v for v in releases + [parse_version(latest)] if v]
+    target = max(known) if known else None
+    for component, release in zip(components, releases):
+        component['outdated'] = bool(release and release < target)
+    update = any(c['outdated'] for c in components)
+    return {'latest': '.'.join(map(str, target)) if update else latest, 'update_available': update,
+            'url': f'{RELEASES_URL}/tag/v{".".join(map(str, target))}' if update else RELEASES_URL,
+            'components': components}
+
+
 STATIC = {
     '/favicon.ico': ('favicon.ico', 'image/x-icon'),
     '/assets/favicon-32.png': ('assets/favicon-32.png', 'image/png'),
@@ -87,6 +160,8 @@ class Handler(BaseHTTPRequestHandler):
                 self.send_error(503, 'State unavailable')
                 return
             content_type = 'application/json'
+        elif self.path == '/api/version':
+            body, content_type = json.dumps(version_info()).encode(), 'application/json'
         elif self.path == '/style.css':
             body, content_type = (ROOT / 'dashboard/style.css').read_bytes(), 'text/css; charset=utf-8'
         elif self.path in STATIC:

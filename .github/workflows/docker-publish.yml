@@ -18,6 +18,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Check VERSION matches tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: test "v$(cat VERSION)" = "$GITHUB_REF_NAME" || { echo "::error::VERSION ($(cat VERSION)) does not match tag $GITHUB_REF_NAME"; exit 1; }
+
       - name: Run test suite
         run: docker run --rm --volume "$PWD:/work:ro" --workdir /work python:3.12-slim sh -c 'apt-get update && apt-get install -y --no-install-recommends tmux && pip install --quiet "jsonschema>=4.18,<5" "PyYAML>=6,<7" && python -B -m unittest discover -s tests -v'
 
@@ -79,3 +83,37 @@ jobs:
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.target }}
           cache-to: type=gha,mode=max,scope=${{ matrix.target }}
+
+  release:
+    needs: build-and-push
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Create GitHub release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPOSITORY: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          version="${TAG#v}"
+          image="ghcr.io/${REPOSITORY,,}"
+          cat > notes.md <<NOTES
+          ## Update
+
+          With Docker Compose, from the \`docker/\` directory:
+
+          \`\`\`sh
+          docker compose pull
+          docker compose up -d
+          \`\`\`
+
+          Update the dashboard and scheduler together. Run \`setup\` on hosts to deploy the updated collector.
+
+          ## Images
+
+          - [\`${image}-scheduler:${version}\`](https://github.com/${REPOSITORY}/pkgs/container/${REPOSITORY#*/}-scheduler)
+          - [\`${image}-dashboard:${version}\`](https://github.com/${REPOSITORY}/pkgs/container/${REPOSITORY#*/}-dashboard)
+          NOTES
+          gh release create "$TAG" --repo "$REPOSITORY" --title "$TAG" --notes-file notes.md --generate-notes --verify-tag

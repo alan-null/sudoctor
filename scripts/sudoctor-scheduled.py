@@ -26,6 +26,13 @@ def now():
     return dt.datetime.now(dt.timezone.utc).isoformat()
 
 
+def current_version():
+    try:
+        return (ROOT / 'VERSION').read_text().strip() or None
+    except OSError:
+        return None
+
+
 def read_state():
     try:
         return json.loads((STATE / 'state.json').read_text())
@@ -139,6 +146,8 @@ def sweep():
             if host.get('attempt', {}).get('outcome') == 'running':
                 host['attempt'].update(outcome='check_error', ended_at=now(), error='Check interrupted')
         state['error'] = None
+        # The dashboard reads this from the shared volume to spot an outdated scheduler image.
+        state['scheduler_version'] = current_version()
         save_state(state)
         env = os.environ.copy()
         inventory = Path(env.get('SUDOCTOR_INVENTORY') or Path(env.get('XDG_CONFIG_HOME') or Path.home() / '.config') / 'sudoctor/inventory/hosts.ini').expanduser().resolve()

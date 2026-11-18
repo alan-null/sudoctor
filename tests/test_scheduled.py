@@ -81,6 +81,7 @@ class ScheduledTests(unittest.TestCase):
         state = scheduled.read_state()
         self.assertEqual(state['hosts']['a']['attempt']['outcome'], 'check_error')
         self.assertTrue(state['error'])
+        self.assertEqual(state['scheduler_version'], (Path(__file__).resolve().parents[1] / 'VERSION').read_text().strip())
 
     def test_http_routes(self):
         scheduled.save_state({'hosts': {}, 'error': None})
